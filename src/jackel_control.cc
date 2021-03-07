@@ -19,13 +19,15 @@ class JackalController {
  public:
   JackalController() {
     std::string jackal_name;
-    ros::param::param<std::string>("~jackal_name", jackal_name, "alvin_jk");
-    ros::param::param("~dead_button", btn_dead_, 1);
-    ros::param::param("~control_frequency", control_freq_, 100);
-    ros::param::param("~axis_linear", axis_linear_, 1);
-    ros::param::param("~axis_angular", axis_angular_, 0);
-    ros::param::param("~scale_linear", scale_linear_, .4);
-    ros::param::param("~scale_angular", scale_angular_, 1.);
+    node_.param<std::string>("~jackal_name", jackal_name, "alvin_jk");
+    node_.param<int>("~dead_button", btn_dead_, 1);
+    node_.param<int>("~control_frequency", control_freq_, 100);
+    node_.param<int>("~axis_linear", axis_linear_, 1);
+    node_.param<int>("~axis_angular", axis_angular_, 0);
+    node_.param<double>("~scale_linear", scale_linear_, .4);
+    node_.param<double>("~scale_angular", scale_angular_, 1.);
+    node_.param<double>("~max_abs_linear", max_abs_linear_, .4);
+    node_.param<double>("~max_abs_angular", max_abs_angular_, 1.);
     sub_joy_ = node_.subscribe("/bluetooth_teleop/joy", 10,
                                 &JackalController::JoystickHandler, this);
     sub_meas_ = node_.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
@@ -68,8 +70,8 @@ class JackalController {
     }
 
     geometry_msgs::Twist msg{};
-    msg.linear.x = linear_vel;
-    msg.angular.z = angular_vel;
+    msg.linear.x = std::min(std::max(linear_vel, -max_abs_linear_), max_abs_linear_);
+    msg.angular.z = std::min(std::max(angular_vel, -max_abs_angular_), max_abs_angular_);
 
     pub_cmd_.publish(msg);
   }
@@ -80,10 +82,13 @@ class JackalController {
   bool is_dead_ = false;
   std::mutex mtx_dead_;
 
+  // params
   int btn_dead_;
   int axis_linear_;
   int axis_angular_;
   int control_freq_;
+  double max_abs_linear_;
+  double max_abs_angular_;
   double scale_linear_;
   double scale_angular_;
 
