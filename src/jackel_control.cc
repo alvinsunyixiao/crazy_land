@@ -52,8 +52,10 @@ class JackalController {
   }
 
   void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
+    const Eigen::Quaterniond rot_3d(msg->pose.orientation.w, msg->pose.orientation.x,
+                                    msg->pose.orientation.y, msg->pose.orientation.z);
     std::lock_guard<std::mutex> lock(mtx_state_);
-    state_.rotation.angle() = 2 * acos(msg->pose.orientation.w);
+    state_.rotation.angle() = rot_3d.toRotationMatrix().eulerAngles(2, 1, 0)[0];
     state_.position << msg->pose.position.x, msg->pose.position.y, 0;
   }
 
