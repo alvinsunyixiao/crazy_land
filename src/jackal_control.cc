@@ -1,23 +1,30 @@
+#include <chrono>
 #include <cmath>
 #include <memory>
 #include <mutex>
+#include <thread>
 
 #include "ros/ros.h"
 
 #include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/Twist.h"
+#include "geometry_msgs/Pose2D.h"
 #include "sensor_msgs/Joy.h"
 
 #include <Eigen/Geometry>
 
-struct jackel_state_t {
+struct jackal_state_t {
   Eigen::Rotation2Dd rotation;
   Eigen::Vector2d position;
 };
 
 class JackalController {
  public:
-  JackalController() : pnode_("~") {
+  JackalController() : pnode_("~"), t_control_(&JackalController::ControlLoop, this) {
+    // initialize target to origin
+    target_pose_.position.setZero();
+    target_pose_.rotation.angle() = 0;
+
     std::string jackal_name;
     pnode_.param<std::string>("jackal_name", jackal_name, "alvin_jk");
     pnode_.param<int>("dead_button", btn_dead_, 1);
@@ -33,13 +40,37 @@ class JackalController {
                                 &JackalController::JoystickHandler, this);
     sub_meas_ = node_.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
                                 &JackalController::MeasurementHandler, this);
+    sub_target_ = node_.subscribe("/tracking/jackal", 10,
+                                  &JackalController::TargetHandler, this);
     pub_cmd_ = node_.advertise<geometry_msgs::Twist>("/cmd_vel", 10);
+  }
+
+  ~JackalController() {
+    t_control_.join();
   }
 
  private:
   void ControlLoop() {
     ros::Rate rate(control_freq_);
+    std::this_thread::sleep_for(std::chrono::seconds(5));
     while (ros::ok()) {
+      // read state and target
+      jackal_state_t current_state, target_state;
+      {
+        std::lock_guard<std::mutex> lock(mtx_state_);
+        current_state = state_;
+      }
+      {
+        std::lock_guard<std::mutex> lock(mtx_target_);
+        target_state = target_pose_;
+      }
+
+      // angular error
+      const Eigen::Vector2d position_diff = target_state.position - current_state.position;
+      const Eigen::Rotation2Dd target_rotation(std::atan2(position_diff.y(), position_diff.x()));
+      const double error_rot = (target_rotation * current_state.rotation.inverse()).smallestAngle();
+
+      ROS_INFO("Rotation Error: %f", error_rot);
       rate.sleep();
     }
   }
@@ -62,6 +93,12 @@ class JackalController {
     state_.position << msg->pose.position.x, msg->pose.position.y;
   }
 
+  void TargetHandler(const geometry_msgs::Pose2DConstPtr& msg) {
+    std::lock_guard<std::mutex> lock(mtx_target_);
+    target_pose_.position << msg->x, msg->y;
+    target_pose_.rotation.angle() = msg->theta;
+  }
+
   void SendCommand(const double linear_vel, const double angular_vel) {
     {
       std::lock_guard<std::mutex> lock(mtx_dead_);
@@ -79,11 +116,16 @@ class JackalController {
     pub_cmd_.publish(msg);
   }
 
-  jackel_state_t state_;
+  jackal_state_t state_;
   std::mutex mtx_state_;
 
   bool is_dead_ = false;
   std::mutex mtx_dead_;
+
+  jackal_state_t target_pose_;
+  std::mutex mtx_target_;
+
+  std::thread t_control_;
 
   // params
   int btn_dead_;
@@ -96,15 +138,17 @@ class JackalController {
   double scale_linear_;
   double scale_angular_;
 
+  // ROS Subscriber / Publisher
   ros::NodeHandle node_;
   ros::NodeHandle pnode_;
   ros::Subscriber sub_joy_;
   ros::Subscriber sub_meas_;
+  ros::Subscriber sub_target_;
   ros::Publisher pub_cmd_;
 };
 
 int main(int argc, char* argv[]) {
-  ros::init(argc, argv, "jackel_control");
+  ros::init(argc, argv, "jackal_control");
 
   JackalController controller;
 
