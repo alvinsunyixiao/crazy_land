@@ -53,6 +53,10 @@ class JackalController {
     ros::Duration(5).sleep();
     ros::Rate rate(control_freq_);
     while (ros::ok()) {
+      {
+        std::lock_guard<std::mutex> lock(mtx_mode_);
+        if (is_manual_) { continue; }
+      }
       // read state and target
       jackal_state_t current_state, target_state;
       {
@@ -69,7 +73,10 @@ class JackalController {
       const Eigen::Rotation2Dd target_rotation(std::atan2(position_diff.y(), position_diff.x()));
       const double error_rot = (target_rotation * current_state.rotation.inverse()).smallestAngle();
 
-      ROS_INFO("Rotation Error: %f", error_rot);
+      // linear error
+      const double error_pos = position_diff.norm();
+
+      SendCommand(error_pos * .1, error_rot * .1);
       rate.sleep();
     }
   }
@@ -80,10 +87,14 @@ class JackalController {
       is_dead_ = true;
     }
 
-    if (msg->buttons[btn_manual_]) {
-      SendCommand(msg->axes[axis_linear_] * scale_linear_,
-                  msg->axes[axis_angular_] * scale_angular_);
+    {
+      std::lock_guard<std::mutex> lock(mtx_mode_);
+      is_manual_ = msg->buttons[btn_manual_];
+      if (!is_manual_) { return; }
     }
+
+    SendCommand(msg->axes[axis_linear_] * scale_linear_,
+                msg->axes[axis_angular_] * scale_angular_);
   }
 
   void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
@@ -120,6 +131,9 @@ class JackalController {
 
   bool is_dead_ = false;
   std::mutex mtx_dead_;
+
+  bool is_manual_ = false;
+  std::mutex mtx_mode_;
 
   jackal_state_t target_pose_;
   std::mutex mtx_target_;
