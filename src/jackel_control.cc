@@ -21,6 +21,7 @@ class JackalController {
     std::string jackal_name;
     pnode_.param<std::string>("jackal_name", jackal_name, "alvin_jk");
     pnode_.param<int>("dead_button", btn_dead_, 1);
+    pnode_.param<int>("manual_button", btn_manual_, 2);
     pnode_.param<int>("control_frequency", control_freq_, 100);
     pnode_.param<int>("axis_linear", axis_linear_, 1);
     pnode_.param<int>("axis_angular", axis_angular_, 0);
@@ -49,8 +50,10 @@ class JackalController {
       is_dead_ = true;
     }
 
-    SendCommand(msg->axes[axis_linear_] * scale_linear_,
-                msg->axes[axis_angular_] * scale_angular_);
+    if (msg->buttons[btn_manual_]) {
+      SendCommand(msg->axes[axis_linear_] * scale_linear_,
+                  msg->axes[axis_angular_] * scale_angular_);
+    }
   }
 
   void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
@@ -84,6 +87,7 @@ class JackalController {
 
   // params
   int btn_dead_;
+  int btn_manual_;
   int axis_linear_;
   int axis_angular_;
   int control_freq_;
