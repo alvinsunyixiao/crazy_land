@@ -1,4 +1,3 @@
-#include <chrono>
 #include <cmath>
 #include <memory>
 #include <mutex>
@@ -51,8 +50,8 @@ class JackalController {
 
  private:
   void ControlLoop() {
+    ros::Duration(5).sleep();
     ros::Rate rate(control_freq_);
-    std::this_thread::sleep_for(std::chrono::seconds(5));
     while (ros::ok()) {
       // read state and target
       jackal_state_t current_state, target_state;
@@ -125,8 +124,6 @@ class JackalController {
   jackal_state_t target_pose_;
   std::mutex mtx_target_;
 
-  std::thread t_control_;
-
   // params
   int btn_dead_;
   int btn_manual_;
@@ -145,6 +142,9 @@ class JackalController {
   ros::Subscriber sub_meas_;
   ros::Subscriber sub_target_;
   ros::Publisher pub_cmd_;
+
+  std::thread t_control_;
+
 };
 
 int main(int argc, char* argv[]) {
