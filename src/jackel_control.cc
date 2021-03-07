@@ -17,17 +17,17 @@ struct jackel_state_t {
 
 class JackalController {
  public:
-  JackalController() {
+  JackalController() : pnode_("~") {
     std::string jackal_name;
-    node_.param<std::string>("~jackal_name", jackal_name, "alvin_jk");
-    node_.param<int>("~dead_button", btn_dead_, 1);
-    node_.param<int>("~control_frequency", control_freq_, 100);
-    node_.param<int>("~axis_linear", axis_linear_, 1);
-    node_.param<int>("~axis_angular", axis_angular_, 0);
-    node_.param<double>("~scale_linear", scale_linear_, .4);
-    node_.param<double>("~scale_angular", scale_angular_, 1.);
-    node_.param<double>("~max_abs_linear", max_abs_linear_, .4);
-    node_.param<double>("~max_abs_angular", max_abs_angular_, 1.);
+    pnode_.param<std::string>("jackal_name", jackal_name, "alvin_jk");
+    pnode_.param<int>("dead_button", btn_dead_, 1);
+    pnode_.param<int>("control_frequency", control_freq_, 100);
+    pnode_.param<int>("axis_linear", axis_linear_, 1);
+    pnode_.param<int>("axis_angular", axis_angular_, 0);
+    pnode_.param<double>("scale_linear", scale_linear_, .4);
+    pnode_.param<double>("scale_angular", scale_angular_, 1.);
+    pnode_.param<double>("max_abs_linear", max_abs_linear_, .4);
+    pnode_.param<double>("max_abs_angular", max_abs_angular_, 1.);
     sub_joy_ = node_.subscribe("/bluetooth_teleop/joy", 10,
                                 &JackalController::JoystickHandler, this);
     sub_meas_ = node_.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
@@ -93,6 +93,7 @@ class JackalController {
   double scale_angular_;
 
   ros::NodeHandle node_;
+  ros::NodeHandle pnode_;
   ros::Subscriber sub_joy_;
   ros::Subscriber sub_meas_;
   ros::Publisher pub_cmd_;
