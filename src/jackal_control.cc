@@ -33,8 +33,11 @@ class JackalController {
     pnode_.param<int>("axis_angular", axis_angular_, 0);
     pnode_.param<double>("scale_linear", scale_linear_, .4);
     pnode_.param<double>("scale_angular", scale_angular_, 1.);
-    pnode_.param<double>("max_abs_linear", max_abs_linear_, .4);
-    pnode_.param<double>("max_abs_angular", max_abs_angular_, 1.);
+    pnode_.param<double>("max_abs_linear", max_abs_linear_, .7);
+    pnode_.param<double>("max_abs_angular", max_abs_angular_, 2.);
+    pnode_.param<double>("error_deadband", error_deadband_, 0.02);
+    pnode_.param<double>("gain_linear", gain_linear_, 5.0);
+    pnode_.param<double>("gain_angular", gain_angular_, 8.0);
     sub_joy_ = node_.subscribe("/bluetooth_teleop/joy", 10,
                                 &JackalController::JoystickHandler, this);
     sub_meas_ = node_.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
@@ -76,7 +79,8 @@ class JackalController {
       // linear error
       const double error_pos = position_diff.norm();
 
-      SendCommand(error_pos * .1, error_rot * .1);
+      SendCommand(error_pos > error_deadband_ ? error_pos * gain_linear_ : 0.,
+                  error_pos > error_deadband_ ? error_rot * gain_angular_ : 0.);
       rate.sleep();
     }
   }
@@ -144,10 +148,13 @@ class JackalController {
   int axis_linear_;
   int axis_angular_;
   int control_freq_;
+  double error_deadband_;
   double max_abs_linear_;
   double max_abs_angular_;
   double scale_linear_;
   double scale_angular_;
+  double gain_linear_;
+  double gain_angular_;
 
   // ROS Subscriber / Publisher
   ros::NodeHandle node_;
