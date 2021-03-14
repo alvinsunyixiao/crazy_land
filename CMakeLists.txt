@@ -130,6 +130,10 @@ add_executable(jackal_control src/jackal_control.cc)
 target_include_directories(jackal_control PRIVATE ${catkin_INCLUDE_DIRS})
 target_link_libraries(jackal_control PRIVATE ${catkin_LIBRARIES} Eigen3::Eigen)
 
+add_executable(jackal_trajectory src/jackal_traj.cc)
+target_include_directories(jackal_trajectory PRIVATE ${catkin_INCLUDE_DIRS})
+target_link_libraries(jackal_trajectory PRIVATE ${catkin_LIBRARIES})
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
