@@ -16,8 +16,8 @@ class PoseSender:
     def __init__(self):
         crazyflie_name = rospy.get_param("crazyflie_name", default="alvin_cf")
         rospy.init_node("flight_control", anonymous=True)
-        self.sub = rospy.Subscriber(f"/vrpn_client_node/{crazyflie_name}/pose",
-                                    PoseStamped, self._on_packet)
+        self.vicon_sub = rospy.Subscriber(f"/vrpn_client_node/{crazyflie_name}/pose",
+                                          PoseStamped, self._on_packet)
         self.on_pose = None
 
     def _on_packet(self, msg: PoseStamped):
@@ -53,22 +53,22 @@ class FlightController:
             # reset Kalman filter
             self.reset_estimator(scf)
 
-            #self.debug_blocking_log(scf)
+            self.debug_blocking_log(scf)
 
             # flight
-            scf.cf.high_level_commander.takeoff(1.0, 2.0)
-            time.sleep(3.0)
-            scf.cf.high_level_commander.go_to(1.0, 0.0, 1.0, 0.0, 1.0)
-            time.sleep(2.0)
-            scf.cf.high_level_commander.go_to(1.0, 1.0, 1.0, 0.0, 1.0)
-            time.sleep(2.0)
-            scf.cf.high_level_commander.go_to(0.0, 1.0, 1.0, 0.0, 1.0)
-            time.sleep(2.0)
-            scf.cf.high_level_commander.go_to(0.0, 0.0, 1.0, 0.0, 1.0)
-            time.sleep(2.0)
-            scf.cf.high_level_commander.land(0.0, 2.0)
-            time.sleep(3.0)
-            scf.cf.high_level_commander.stop()
+            #scf.cf.high_level_commander.takeoff(1.0, 2.0)
+            #time.sleep(3.0)
+            #scf.cf.high_level_commander.go_to(1.0, 0.0, 1.0, 0.0, 1.0)
+            #time.sleep(2.0)
+            #scf.cf.high_level_commander.go_to(1.0, 1.0, 1.0, 0.0, 1.0)
+            #time.sleep(2.0)
+            #scf.cf.high_level_commander.go_to(0.0, 1.0, 1.0, 0.0, 1.0)
+            #time.sleep(2.0)
+            #scf.cf.high_level_commander.go_to(0.0, 0.0, 1.0, 0.0, 1.0)
+            #time.sleep(2.0)
+            #scf.cf.high_level_commander.land(0.0, 2.0)
+            #time.sleep(3.0)
+            #scf.cf.high_level_commander.stop()
 
     def update_pose(self, msg: Pose):
         self.cf.extpos.send_extpose(msg.position.x, msg.position.y, msg.position.z,
@@ -102,3 +102,5 @@ if __name__ == "__main__":
     controller = FlightController()
 
     controller.run(pose_sender)
+
+    rospy.spin()

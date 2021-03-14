@@ -10,12 +10,7 @@
 #include "geometry_msgs/Pose2D.h"
 #include "sensor_msgs/Joy.h"
 
-#include <Eigen/Geometry>
-
-struct jackal_state_t {
-  Eigen::Rotation2Dd rotation;
-  Eigen::Vector2d position;
-};
+#include "types.h"
 
 class JackalController {
  public:

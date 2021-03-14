@@ -1,0 +1,10 @@
+<launch>
+  <node pkg="crazy_land" type="jackal_trajectory" name="jackal_trajectory" output="screen">
+    <rosparam param="trajectory_x">
+      [1, 1, 0.8, -0.8, -1, -1, -0.8, 0.8]
+    </rosparam>
+    <rosparam param="trajectory_y">
+      [-0.6, 0.4, 0.6, 0.6, 0.4, -0.6, -0.8, -0.8]
+    </rosparam>
+  </node>
+</launch>
