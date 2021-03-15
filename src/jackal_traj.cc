@@ -51,16 +51,19 @@ int main(int argc, char* argv[]) {
 
   // trajectory loop
   auto pub = node.advertise<geometry_msgs::Pose2D>("/tracking/jackal", 10);
+  ros::Duration(3).sleep();
   size_t waypoint_idx = 0;
   while (ros::ok()) {
-    ROS_INFO("publishing waypoint @ (%f %f)", traj[waypoint_idx].x, traj[waypoint_idx].y);
     pub.publish(traj[waypoint_idx]);
+    ROS_INFO("Publishing target @ (%f %f)", traj[waypoint_idx].x, traj[waypoint_idx].y);
     const Eigen::Vector2d target_position(traj[waypoint_idx].x, traj[waypoint_idx].y);
 
     std::unique_lock<std::mutex> lock(mtx_state);
     cv_state.wait(lock, [&]() {
-      return (jackal_state.position - target_position).norm() < 0.1;
+      return (jackal_state.position - target_position).norm() < 0.2;
     });
+
+    waypoint_idx = (waypoint_idx + 1) % traj.size();
   }
 
   spinner.stop();

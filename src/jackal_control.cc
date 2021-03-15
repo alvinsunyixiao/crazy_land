@@ -32,9 +32,9 @@ class JackalController {
     pnode_.param<double>("max_abs_angular", max_abs_angular_, 2.);
     pnode_.param<double>("error_deadband", error_deadband_, 0.02);
     pnode_.param<double>("gain_linear", gain_linear_, 5.0);
-    pnode_.param<double>("gain_angular", gain_angular_, 8.0);
-    pnode_.param<double>("target_max_abs_x", target_max_abs_x_, 1);
-    pnode_.param<double>("target_max_abs_y", target_max_abs_y_, 0.6);
+    pnode_.param<double>("gain_angular", gain_angular_, 2.5);
+    pnode_.param<double>("target_max_abs_x", target_max_abs_x_, 1.1);
+    pnode_.param<double>("target_max_abs_y", target_max_abs_y_, 0.7);
     sub_joy_ = node_.subscribe("/bluetooth_teleop/joy", 10,
                                 &JackalController::JoystickHandler, this);
     sub_meas_ = node_.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
@@ -105,6 +105,7 @@ class JackalController {
   }
 
   void TargetHandler(const geometry_msgs::Pose2DConstPtr& msg) {
+    ROS_INFO("Tracking target @ (%f %f)", msg->x, msg->y);
     std::lock_guard<std::mutex> lock(mtx_target_);
     // clamp x y to stay within bound
     const double x_safe = std::min(std::max(msg->x, -target_max_abs_x_), target_max_abs_x_);
