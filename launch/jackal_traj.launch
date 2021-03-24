@@ -4,11 +4,5 @@
   <node pkg="crazy_land" type="jackal_control" name="jackal_control" output="screen"/>
 
   <node pkg="crazy_land" type="jackal_trajectory" name="jackal_trajectory" output="screen">
-    <rosparam param="trajectory_x">
-      [1, 1, 0.7, -0.7, -1, -1, -0.7, 0.7]
-    </rosparam>
-    <rosparam param="trajectory_y">
-      [-0.3, 0.3, 0.6, 0.6, 0.3, -0.3, -0.6, -0.6]
-    </rosparam>
   </node>
 </launch>

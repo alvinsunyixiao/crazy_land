@@ -14,11 +14,13 @@
 std::mutex mtx_state;
 std::condition_variable cv_state;
 jackal_state_t jackal_state;
+bool updated = false;
 
 void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
   std::unique_lock<std::mutex> lock(mtx_state);
   jackal_state.rotation.angle() = 2 * atan2(msg->pose.orientation.z, msg->pose.orientation.w);
   jackal_state.position << msg->pose.position.x, msg->pose.position.y;
+  updated = true;
 
   lock.unlock();
   cv_state.notify_one();
@@ -29,16 +31,6 @@ int main(int argc, char* argv[]) {
   ros::NodeHandle pnode("~");
 
   // parse trajectory
-  std::vector<double> x_traj, y_traj;
-  std::vector<geometry_msgs::Pose2D> traj;
-  pnode.getParam("trajectory_x", x_traj);
-  pnode.getParam("trajectory_y", y_traj);
-  for (int i = 0; i < x_traj.size(); ++i) {
-    geometry_msgs::Pose2D msg;
-    msg.x = x_traj[i];
-    msg.y = y_traj[i];
-    traj.push_back(msg);
-  }
 
   // subscribe to jackal measurement
   std::string jackal_name;
@@ -49,21 +41,27 @@ int main(int argc, char* argv[]) {
   ros::AsyncSpinner spinner(1);
   spinner.start();
 
-  // trajectory loop
+  // publishable topic
   auto pub = node.advertise<geometry_msgs::Pose2D>("/tracking/jackal", 10);
-  ros::Duration(3).sleep();
-  size_t waypoint_idx = 0;
-  while (ros::ok()) {
-    pub.publish(traj[waypoint_idx]);
-    ROS_INFO("Publishing target @ (%f %f)", traj[waypoint_idx].x, traj[waypoint_idx].y);
-    const Eigen::Vector2d target_position(traj[waypoint_idx].x, traj[waypoint_idx].y);
 
+  // trajectory loop
+  ros::Duration(3).sleep();
+  auto start_time = ros::Time::now();
+  while (ros::ok()) {
     std::unique_lock<std::mutex> lock(mtx_state);
     cv_state.wait(lock, [&]() {
-      return (jackal_state.position - target_position).norm() < 0.2;
+      return updated;
     });
+    updated = false;
 
-    waypoint_idx = (waypoint_idx + 1) % traj.size();
+    // compute waypoint from trajectory
+    double t = (ros::Time::now() - start_time).toSec();
+    geometry_msgs::Pose2D msg;
+    msg.x = 0.5 * std::cos(2 * M_PI * t / 10);
+    msg.y = 0.5 * std::sin(2 * M_PI * t / 10);
+    pub.publish(msg);
+
+    ROS_INFO("Publishing target @ (%f %f)", msg.x, msg.y);
   }
 
   spinner.stop();
