@@ -57,8 +57,8 @@ int main(int argc, char* argv[]) {
     // compute waypoint from trajectory
     double t = (ros::Time::now() - start_time).toSec();
     geometry_msgs::Pose2D msg;
-    msg.x = 0.5 * std::cos(2 * M_PI * t / 10);
-    msg.y = 0.5 * std::sin(2 * M_PI * t / 10);
+    msg.x = std::cos(2 * M_PI * t / 12);
+    msg.y = std::sin(2 * M_PI * t / 12);
     pub.publish(msg);
 
     ROS_INFO("Publishing target @ (%f %f)", msg.x, msg.y);
