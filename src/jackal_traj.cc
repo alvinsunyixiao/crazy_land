@@ -8,7 +8,6 @@
 
 #include "ros/ros.h"
 #include "geometry_msgs/PoseStamped.h"
-#include "geometry_msgs/Pose2D.h"
 
 #include "types.h"
 
@@ -29,7 +28,11 @@ void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
 
 class ParametricTraj {
  public:
-  virtual geometry_msgs::Pose2D GetWaypoint(const double& time) const = 0;
+  geometry_msgs::PoseStamped GetWaypointNow() const {
+    return GetWaypoint(ros::Time::now());
+  }
+
+  virtual geometry_msgs::PoseStamped GetWaypoint(const ros::Time& t) const = 0;
 };
 
 class CircularTraj : public ParametricTraj {
@@ -37,10 +40,14 @@ class CircularTraj : public ParametricTraj {
   CircularTraj(const Eigen::Vector2d& center, const double& radius, const double period)
     : center_(center), radius_(radius), period_(period) {}
 
-  geometry_msgs::Pose2D GetWaypoint(const double& time) const override {
-    geometry_msgs::Pose2D msg;
-    msg.x = radius_ * std::cos(2 * M_PI * time / period_) + center_.x();
-    msg.y = radius_ * std::sin(2 * M_PI * time / period_) + center_.y();
+  geometry_msgs::PoseStamped GetWaypoint(const ros::Time& t) const override {
+    geometry_msgs::PoseStamped msg;
+    const double t_sec = t.toSec();
+
+    msg.header.stamp = t;
+    msg.pose.position.x = radius_ * std::cos(2 * M_PI * t_sec / period_) + center_.x();
+    msg.pose.position.y = radius_ * std::sin(2 * M_PI * t_sec / period_) + center_.y();
+
     return msg;
   }
 
@@ -67,6 +74,8 @@ std::unique_ptr<ParametricTraj> MakeTrajectory() {
     return std::make_unique<CircularTraj>(center, radius, period);
   }
 
+  ROS_ERROR("Trajectory type %s unsupported", trajectory_type.c_str());
+
   return nullptr;
 }
 
@@ -84,14 +93,13 @@ int main(int argc, char* argv[]) {
   spinner.start();
 
   // publishable topic
-  auto pub = node.advertise<geometry_msgs::Pose2D>("/tracking/jackal", 10);
+  auto pub = node.advertise<geometry_msgs::PoseStamped>("/tracking/jackal", 10);
 
   // create trajectory object
   const auto trajectory = MakeTrajectory();
 
   // trajectory loop
   ros::Duration(3).sleep();
-  auto start_time = ros::Time::now();
   while (ros::ok()) {
     std::unique_lock<std::mutex> lock(mtx_state);
     cv_state.wait(lock, [&]() {
@@ -100,11 +108,10 @@ int main(int argc, char* argv[]) {
     updated = false;
 
     // compute waypoint from trajectory
-    double t = (ros::Time::now() - start_time).toSec();
-    const auto msg = trajectory->GetWaypoint(t);
+    const auto msg = trajectory->GetWaypointNow();
 
     pub.publish(msg);
-    ROS_INFO("Publishing target @ (%f %f)", msg.x, msg.y);
+    ROS_INFO("Publishing target @ (%f %f)", msg.pose.position.x, msg.pose.position.y);
   }
 
   spinner.stop();

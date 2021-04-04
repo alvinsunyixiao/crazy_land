@@ -7,7 +7,6 @@
 
 #include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/Twist.h"
-#include "geometry_msgs/Pose2D.h"
 #include "sensor_msgs/Joy.h"
 
 #include "types.h"
@@ -104,15 +103,16 @@ class JackalController {
     state_.position << msg->pose.position.x, msg->pose.position.y;
   }
 
-  void TargetHandler(const geometry_msgs::Pose2DConstPtr& msg) {
-    ROS_INFO("Tracking target @ (%f %f)", msg->x, msg->y);
+  void TargetHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
+    const auto position = msg->pose.position;
+
+    ROS_INFO("Tracking target @ (%f %f)", position.x, position.y);
     std::lock_guard<std::mutex> lock(mtx_target_);
     // clamp x y to stay within bound
-    const double x_safe = std::min(std::max(msg->x, -target_max_abs_x_), target_max_abs_x_);
-    const double y_safe = std::min(std::max(msg->y, -target_max_abs_y_), target_max_abs_y_);
+    const double x_safe = std::min(std::max(position.x, -target_max_abs_x_), target_max_abs_x_);
+    const double y_safe = std::min(std::max(position.y, -target_max_abs_y_), target_max_abs_y_);
 
     target_pose_.position << x_safe, y_safe;
-    target_pose_.rotation.angle() = msg->theta;
   }
 
   void SendCommand(const double linear_vel, const double angular_vel) {
