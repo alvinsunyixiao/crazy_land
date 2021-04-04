@@ -1,7 +1,8 @@
 # joystick settings
-btn_triangle: 0 # need to verify this
+btn_square: 0
 btn_cross: 1
 btn_circle: 2
+btn_triangle: 3
 
 # vicon names
 jackal_name: "alvin_jk"
