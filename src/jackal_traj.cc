@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
   spinner.start();
 
   // publishable topic
-  auto pub = node.advertise<geometry_msgs::PoseStamped>("/tracking/jackal", 10);
+  auto jackal_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/jackal_ctrl", 10);
 
   // create trajectory object
   const auto trajectory = MakeTrajectory();
@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
     // compute waypoint from trajectory
     const auto msg = trajectory->GetWaypointNow();
 
-    pub.publish(msg);
+    jackal_ctrl.publish(msg);
     ROS_INFO("Publishing target @ (%f %f)", msg.pose.position.x, msg.pose.position.y);
   }
 

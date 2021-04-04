@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import threading
+import time
 
 import cflib.crtp
 import rospy
@@ -17,24 +18,30 @@ class FlightControl:
         cflib.crtp.init_drivers(enable_debug_driver=False)
         self.cf = Crazyflie(rw_cache="./cache")
         cf_name = rospy.get_param("/crazy_params/crazyflie_name")
-        self.vicon_sub = rospy.Subscriber(f"/vrpn_client_node/{cf_name}/pose",
-                                          PoseStamped, self._send_ext_pose)
-        self.joy_sub = rospy.Subscriber("/bluetooth_teleop/joy",
-                                        Joy, self._joy_control)
-        self.cmd_sub = rospy.Subscriber("crazy_land/cmd_crazy",
-                                        PoseStamped, self._send_command)
 
         self._btn_override = rospy.get_param("/crazy_params/btn_cross")
         self._btn_override = rospy.get_param("/crazy_params/btn_triangle")
         self._link_is_valid = False
         self._is_flying = False
         self._joy_override = False
-        self._num_measurements = 0
-        self._joy_lock = threading.Lock()
         self._cmd_lock = threading.Lock()
 
         self._add_callbacks()
         self._initiate_connection()
+        self._init_sequence()
+
+        self._meas_event = None
+        self.vicon_sub = rospy.Subscriber(f"/vrpn_client_node/{cf_name}/pose",
+                                          PoseStamped, self._send_ext_pose)
+        self.joy_sub = rospy.Subscriber("/bluetooth_teleop/joy",
+                                        Joy, self._joy_control)
+        self.cmd_sub = rospy.Subscriber("/crazy_land/crazyflie_ctrl",
+                                        PoseStamped, self._send_command)
+
+        self._wait_for_measurements()
+        self._link_is_valid = True
+        rospy.loginfo("Crazyflie initialization complete")
+
         rospy.on_shutdown(self._shutdown)
 
     def _add_callbacks(self):
@@ -42,18 +49,45 @@ class FlightControl:
         self.cf.connection_failed.add_callback(self._connection_failed)
         self.cf.disconnected.add_callback(self._disconnected)
 
+    def _wait_for_measurements(self, num_measurements: int = 100):
+        self._meas_event = threading.Event()
+        for i in range(num_measurements):
+            self._meas_event.wait()
+            self._meas_event.clear()
+        self._meas_event = None
+
     def _initiate_connection(self):
-        rospy.loginfo("Connecting with crazyflie ...")
+        rospy.loginfo("Connecting with crazyflie...")
         self._connect_event = threading.Event()
         self.cf.open_link(self.URI)
         self._connect_event.wait()
         self._connect_event = None
 
+    def _init_sequence(self):
+        rospy.loginfo("Running crazyflie init sequence...")
+        # enable EKF
+        self.cf.param.set_value("stabilizer.estimator", "2")
+
+        # EKF orientation uncertainty (loser then default)
+        self.cf.param.set_value("locSrv.extQuatStdDev", 0.03)
+
+        # enable high level commander
+        self.cf.param.set_value("commander.enHighLevel", "1")
+
+        # enable mellinger controller
+        self.cf.param.set_value("stabilizer.controller", "2")
+
+        # reset Kalman Estimator
+        self.cf.param.set_value("kalman.resetEstimation", "1")
+        time.sleep(0.1)
+        self.cf.param.set_value("kalman.resetEstimation", "0")
+
     def _send_command(self, msg: PoseStamped):
-        if self._num_measurements < 100 or self._joy_override:
+        self._cmd_lock.acquire()
+        if not self._link_is_valid or self._joy_override:
+            self._cmd_lock.release()
             return
 
-        self._cmd_lock.acquire()
         duration = (msg.header.stamp - rospy.Time.now()).to_sec()
         if msg.header.frame_id == "TAKEOFF" and not self._is_flying:
             self.cf.high_level_commander.takeoff(msg.pose.position.z, duration)
@@ -69,18 +103,17 @@ class FlightControl:
         self._cmd_lock.release()
 
     def _joy_control(self, msg: Joy):
-        if self._num_measurements < 100:
+        if not self._link_is_valid:
             return
-
-        self._joy_lock.acquire()
-        if msg.buttons[self._btn_override]:
-            self._joy_override = True
-        if not self._joy_override:
-            self._joy_lock.release()
-            return
-        self._joy_lock.release()
 
         self._cmd_lock.acquire()
+        if msg.buttons[self._btn_override]:
+            self._joy_override = True
+
+        if not self._joy_override:
+            self._cmd_lock.release()
+            return
+
         if msg.buttons[self._btn_land] and self._is_flying:
             self.cf.high_level_commander.land(0.0, 3.0)
             self._is_flying = False
@@ -92,7 +125,8 @@ class FlightControl:
             orientation = msg.pose.orientation
             self.cf.extpos.send_extpose(position.x, position.y, position.z,
                                         orientation.x, orientation.y, orientation.z, orientation.w)
-            self._num_measurements += 1
+            if self._meas_event:
+                self._meas_event.set()
 
     def _shutdown(self):
         if self._link_is_valid:
@@ -103,15 +137,14 @@ class FlightControl:
 
     def _connected(self, link_uri):
         rospy.loginfo(f"Connected with crazyflie @ {link_uri}")
-        self._link_is_valid = True
         if self._connect_event:
             self._connect_event.set()
 
     def _connection_failed(self, link_uri, msg):
         rospy.logerr(f"Connection with crazyflie failed @ {link_uri} : {msg}")
+        rospy.signal_shutdown("Connection with crazflie falied")
         if self._connect_event:
             self._connect_event.set()
-        rospy.signal_shutdown("Connection with crazflie falied")
 
     def _disconnected(self, link_uri):
         rospy.loginfo(f"Disconnected with crazyflie @ {link_uri}")

@@ -38,7 +38,7 @@ class JackalController {
                                 &JackalController::JoystickHandler, this);
     sub_meas_ = node_.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
                                 &JackalController::MeasurementHandler, this);
-    sub_target_ = node_.subscribe("/tracking/jackal", 10,
+    sub_target_ = node_.subscribe("/crazy_land/jackal_ctrl", 10,
                                   &JackalController::TargetHandler, this);
     pub_cmd_ = node_.advertise<geometry_msgs::Twist>("/cmd_vel", 10);
   }
