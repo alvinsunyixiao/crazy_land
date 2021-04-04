@@ -22,6 +22,7 @@ class FlightControl:
         self._btn_override = rospy.get_param("/crazy_params/btn_cross")
         self._btn_override = rospy.get_param("/crazy_params/btn_triangle")
         self._link_is_valid = False
+        self._initialized = False
         self._is_flying = False
         self._joy_override = False
         self._cmd_lock = threading.Lock()
@@ -39,7 +40,7 @@ class FlightControl:
                                         PoseStamped, self._send_command)
 
         self._wait_for_measurements()
-        self._link_is_valid = True
+        self._initialized = True
         rospy.loginfo("Crazyflie initialization complete")
 
         rospy.on_shutdown(self._shutdown)
@@ -50,6 +51,7 @@ class FlightControl:
         self.cf.disconnected.add_callback(self._disconnected)
 
     def _wait_for_measurements(self, num_measurements: int = 100):
+        rospy.loginfo("Waiting for enough measurements...")
         self._meas_event = threading.Event()
         for i in range(num_measurements):
             self._meas_event.wait()
@@ -84,7 +86,7 @@ class FlightControl:
 
     def _send_command(self, msg: PoseStamped):
         self._cmd_lock.acquire()
-        if not self._link_is_valid or self._joy_override:
+        if not self._initialized or self._joy_override:
             self._cmd_lock.release()
             return
 
@@ -103,7 +105,7 @@ class FlightControl:
         self._cmd_lock.release()
 
     def _joy_control(self, msg: Joy):
-        if not self._link_is_valid:
+        if not self._initialized:
             return
 
         self._cmd_lock.acquire()
@@ -130,7 +132,7 @@ class FlightControl:
 
     def _shutdown(self):
         if self._link_is_valid:
-            self._disconnect_event = Event()
+            self._disconnect_event = threading.Event()
             self.cf.close_link()
             self._disconnect_event.wait()
             self._disconnect_event = None
@@ -139,6 +141,7 @@ class FlightControl:
         rospy.loginfo(f"Connected with crazyflie @ {link_uri}")
         if self._connect_event:
             self._connect_event.set()
+        self._link_is_valid = True
 
     def _connection_failed(self, link_uri, msg):
         rospy.logerr(f"Connection with crazyflie failed @ {link_uri} : {msg}")
