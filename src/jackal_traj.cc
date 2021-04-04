@@ -1,4 +1,5 @@
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -26,11 +27,52 @@ void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
   cv_state.notify_one();
 }
 
+class ParametricTraj {
+ public:
+  virtual geometry_msgs::Pose2D GetWaypoint(const double& time) const = 0;
+};
+
+class CircularTraj : public ParametricTraj {
+ public:
+  CircularTraj(const Eigen::Vector2d& center, const double& radius, const double period)
+    : center_(center), radius_(radius), period_(period) {}
+
+  geometry_msgs::Pose2D GetWaypoint(const double& time) const override {
+    geometry_msgs::Pose2D msg;
+    msg.x = radius_ * std::cos(2 * M_PI * time / period_) + center_.x();
+    msg.y = radius_ * std::sin(2 * M_PI * time / period_) + center_.y();
+    return msg;
+  }
+
+ private:
+  const Eigen::Vector2d center_;
+  const double radius_;
+  const double period_;
+};
+
+std::unique_ptr<ParametricTraj> MakeTrajectory() {
+  ros::NodeHandle pnode("~");
+  std::string trajectory_type;
+  pnode.getParam("type", trajectory_type);
+
+  if (trajectory_type == "circular") {
+    Eigen::Vector2d center;
+    double radius, period;
+
+    pnode.getParam("traj/center_x", center.x());
+    pnode.getParam("traj/center_y", center.y());
+    pnode.getParam("traj/radius", radius);
+    pnode.getParam("traj/period", period);
+
+    return std::make_unique<CircularTraj>(center, radius, period);
+  }
+
+  return nullptr;
+}
+
 int main(int argc, char* argv[]) {
   ros::init(argc, argv, "jackal_trajectory");
   ros::NodeHandle pnode("~");
-
-  // parse trajectory
 
   // subscribe to jackal measurement
   std::string jackal_name;
@@ -44,6 +86,9 @@ int main(int argc, char* argv[]) {
   // publishable topic
   auto pub = node.advertise<geometry_msgs::Pose2D>("/tracking/jackal", 10);
 
+  // create trajectory object
+  const auto trajectory = MakeTrajectory();
+
   // trajectory loop
   ros::Duration(3).sleep();
   auto start_time = ros::Time::now();
@@ -56,11 +101,9 @@ int main(int argc, char* argv[]) {
 
     // compute waypoint from trajectory
     double t = (ros::Time::now() - start_time).toSec();
-    geometry_msgs::Pose2D msg;
-    msg.x = std::cos(2 * M_PI * t / 12);
-    msg.y = std::sin(2 * M_PI * t / 12);
-    pub.publish(msg);
+    const auto msg = trajectory->GetWaypoint(t);
 
+    pub.publish(msg);
     ROS_INFO("Publishing target @ (%f %f)", msg.x, msg.y);
   }
 
