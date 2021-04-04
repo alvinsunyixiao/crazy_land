@@ -16,7 +16,8 @@ class FlightControl:
     def __init__(self):
         cflib.crtp.init_drivers(enable_debug_driver=False)
         self.cf = Crazyflie(rw_cache="./cache")
-        self.vicon_sub = rospy.Subscriber("/vrpn_client_node/alvin_cf/pose",
+        cf_name = rospy.get_param("/crazy_params/crazyflie_name")
+        self.vicon_sub = rospy.Subscriber(f"/vrpn_client_node/{cf_name}/pose",
                                           PoseStamped, self._send_ext_pose)
         self.joy_sub = rospy.Subscriber("/bluetooth_teleop/joy",
                                         Joy, self._joy_control)
