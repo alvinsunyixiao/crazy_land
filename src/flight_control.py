@@ -20,7 +20,7 @@ class FlightControl:
         cf_name = rospy.get_param("/crazy_params/crazyflie_name")
 
         self._btn_override = rospy.get_param("/crazy_params/btn_cross")
-        self._btn_override = rospy.get_param("/crazy_params/btn_triangle")
+        self._btn_land = rospy.get_param("/crazy_params/btn_triangle")
         self._link_is_valid = False
         self._initialized = False
         self._is_flying = False
@@ -92,12 +92,15 @@ class FlightControl:
 
         duration = (msg.header.stamp - rospy.Time.now()).to_sec()
         if msg.header.frame_id == "TAKEOFF" and not self._is_flying:
+            rospy.loginfo("Crazyflie taking off...")
             self.cf.high_level_commander.takeoff(msg.pose.position.z, duration)
             self._is_flying = True
         elif msg.header.frame_id == "LAND" and self._is_flying:
+            rospy.loginfo("Crazyflie landing...")
             self.cf.high_level_commander.land(msg.pose.position.z, duration)
             self._is_flying = False
         elif msg.header.frame_id == "FLYTO" and self._is_flying:
+            rospy.loginfo(f"Crazyflie flying towards {msg.pose.position}")
             self.cf.high_level_commander.go_to(msg.pose.position.x,
                                                msg.pose.position.y,
                                                msg.pose.position.z,
