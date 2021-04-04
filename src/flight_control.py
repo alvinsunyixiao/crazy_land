@@ -1,106 +1,129 @@
 #!/usr/bin/env python
 
-import math
-import time
+import threading
 
 import cflib.crtp
 import rospy
 
 from cflib.crazyflie import Crazyflie
-from cflib.crazyflie.log import LogConfig
-from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
-from cflib.crazyflie.syncLogger import SyncLogger
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import PoseStamped
+from sensor_msgs.msg import Joy
 
-class PoseSender:
-    def __init__(self):
-        crazyflie_name = rospy.get_param("crazyflie_name", default="alvin_cf")
-        rospy.init_node("flight_control", anonymous=True)
-        self.vicon_sub = rospy.Subscriber(f"/vrpn_client_node/{crazyflie_name}/pose",
-                                          PoseStamped, self._on_packet)
-        self.on_pose = None
-
-    def _on_packet(self, msg: PoseStamped):
-        if self.on_pose:
-            self.on_pose(msg.pose)
-
-
-class FlightController:
+class FlightControl:
 
     URI = "radio://0/80/2M/E7E7E7E7E7"
 
     def __init__(self):
         cflib.crtp.init_drivers(enable_debug_driver=False)
         self.cf = Crazyflie(rw_cache="./cache")
+        self.vicon_sub = rospy.Subscriber("/vrpn_client_node/alvin_cf/pose",
+                                          PoseStamped, self._send_ext_pose)
+        self.joy_sub = rospy.Subscriber("/bluetooth_teleop/joy",
+                                        Joy, self._joy_control)
+        self.cmd_sub = rospy.Subscriber("crazy_land/cmd_crazy",
+                                        PoseStamped, self._send_command)
 
-    def run(self, pose_sender: PoseSender):
-        # wait for vicon vrpn node boot up
-        time.sleep(5)
-        with SyncCrazyflie(self.URI, cf=self.cf) as scf:
-            # register pose sender
-            pose_sender.on_pose = self.update_pose
+        self._btn_override = rospy.get_param("/crazy_params/btn_cross")
+        self._btn_override = rospy.get_param("/crazy_params/btn_triangle")
+        self._link_is_valid = False
+        self._is_flying = False
+        self._joy_override = False
+        self._num_measurements = 0
+        self._joy_lock = threading.Lock()
+        self._cmd_lock = threading.Lock()
 
-            # activate kalman estimator
-            scf.cf.param.set_value("stabilizer.estimator", "2")
-            scf.cf.param.set_value("locSrv.extQuatStdDev", 0.03)
+        self._add_callbacks()
+        self._initiate_connection()
+        rospy.on_shutdown(self._shutdown)
 
-            # actiavte high level commander
-            scf.cf.param.set_value("commander.enHighLevel", "1")
+    def _add_callbacks(self):
+        self.cf.connected.add_callback(self._connected)
+        self.cf.connection_failed.add_callback(self._connection_failed)
+        self.cf.disconnected.add_callback(self._disconnected)
 
-            # actiave mellinger controller
-            # scf.cf.param.set_value("stabilizer.controller", "2")
+    def _initiate_connection(self):
+        rospy.loginfo("Connecting with crazyflie ...")
+        self._connect_event = threading.Event()
+        self.cf.open_link(self.URI)
+        self._connect_event.wait()
+        self._connect_event = None
 
-            # reset Kalman filter
-            self.reset_estimator(scf)
+    def _send_command(self, msg: PoseStamped):
+        if self._num_measurements < 100 or self._joy_override:
+            return
 
-            self.debug_blocking_log(scf)
+        self._cmd_lock.acquire()
+        duration = (msg.header.stamp - rospy.Time.now()).to_sec()
+        if msg.header.frame_id == "TAKEOFF" and not self._is_flying:
+            self.cf.high_level_commander.takeoff(msg.pose.position.z, duration)
+            self._is_flying = True
+        elif msg.header.frame_id == "LAND" and self._is_flying:
+            self.cf.high_level_commander.land(msg.pose.position.z, duration)
+            self._is_flying = False
+        elif msg.header.frame_id == "FLYTO" and self._is_flying:
+            self.cf.high_level_commander.go_to(msg.pose.position.x,
+                                               msg.pose.position.y,
+                                               msg.pose.position.z,
+                                               0, duration)
+        self._cmd_lock.release()
 
-            # flight
-            #scf.cf.high_level_commander.takeoff(1.0, 2.0)
-            #time.sleep(3.0)
-            #scf.cf.high_level_commander.go_to(1.0, 0.0, 1.0, 0.0, 1.0)
-            #time.sleep(2.0)
-            #scf.cf.high_level_commander.go_to(1.0, 1.0, 1.0, 0.0, 1.0)
-            #time.sleep(2.0)
-            #scf.cf.high_level_commander.go_to(0.0, 1.0, 1.0, 0.0, 1.0)
-            #time.sleep(2.0)
-            #scf.cf.high_level_commander.go_to(0.0, 0.0, 1.0, 0.0, 1.0)
-            #time.sleep(2.0)
-            #scf.cf.high_level_commander.land(0.0, 2.0)
-            #time.sleep(3.0)
-            #scf.cf.high_level_commander.stop()
+    def _joy_control(self, msg: Joy):
+        if self._num_measurements < 100:
+            return
 
-    def update_pose(self, msg: Pose):
-        self.cf.extpos.send_extpose(msg.position.x, msg.position.y, msg.position.z,
-                                    msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w)
+        self._joy_lock.acquire()
+        if msg.buttons[self._btn_override]:
+            self._joy_override = True
+        if not self._joy_override:
+            self._joy_lock.release()
+            return
+        self._joy_lock.release()
 
-    def reset_estimator(self, scf: SyncCrazyflie):
-        scf.cf.param.set_value("kalman.resetEstimation", "1")
-        time.sleep(0.1)
-        scf.cf.param.set_value("kalman.resetEstimation", "0")
+        self._cmd_lock.acquire()
+        if msg.buttons[self._btn_land] and self._is_flying:
+            self.cf.high_level_commander.land(0.0, 3.0)
+            self._is_flying = False
+        self._cmd_lock.release()
 
-        # wait for Kalman filter to converge
-        time.sleep(5)
+    def _send_ext_pose(self, msg: PoseStamped):
+        if self._link_is_valid:
+            position = msg.pose.position
+            orientation = msg.pose.orientation
+            self.cf.extpos.send_extpose(position.x, position.y, position.z,
+                                        orientation.x, orientation.y, orientation.z, orientation.w)
+            self._num_measurements += 1
 
-    def debug_blocking_log(self, scf: SyncCrazyflie):
-        log_config = LogConfig(name="Kalman Filter Stats", period_in_ms=400)
-        #log_config.add_variable("kalman.stateX", "float")
-        #log_config.add_variable("kalman.stateY", "float")
-        #log_config.add_variable("kalman.stateZ", "float")
-        log_config.add_variable("kalman.q0", "float")
-        log_config.add_variable("kalman.q1", "float")
-        log_config.add_variable("kalman.q2", "float")
-        log_config.add_variable("kalman.q3", "float")
+    def _shutdown(self):
+        if self._link_is_valid:
+            self._disconnect_event = Event()
+            self.cf.close_link()
+            self._disconnect_event.wait()
+            self._disconnect_event = None
 
-        with SyncLogger(scf, log_config) as logger:
-            for log_entry in logger:
-                print(log_entry)
+    def _connected(self, link_uri):
+        rospy.loginfo(f"Connected with crazyflie @ {link_uri}")
+        self._link_is_valid = True
+        if self._connect_event:
+            self._connect_event.set()
+
+    def _connection_failed(self, link_uri, msg):
+        rospy.logerr(f"Connection with crazyflie failed @ {link_uri} : {msg}")
+        if self._connect_event:
+            self._connect_event.set()
+        rospy.signal_shutdown("Connection with crazflie falied")
+
+    def _disconnected(self, link_uri):
+        rospy.loginfo(f"Disconnected with crazyflie @ {link_uri}")
+        self._link_is_valid = False
+        if self._disconnect_event:
+            self._disconnect_event.set()
 
 
 if __name__ == "__main__":
-    pose_sender = PoseSender()
-    controller = FlightController()
+    rospy.init_node("flight_control")
 
-    controller.run(pose_sender)
+    fc = FlightControl()
 
     rospy.spin()
+
+

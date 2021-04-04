@@ -1,0 +1,8 @@
+# joystick settings
+btn_triangle: 0 # need to verify this
+btn_cross: 1
+btn_circle: 2
+
+# vicon names
+jackal_name: "alvin_jk"
+crazyflie_name: "alvin_cf"

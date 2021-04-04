@@ -1,3 +1,4 @@
+cfclient
 pyyaml
 rospkg
-cflib
+squaternion

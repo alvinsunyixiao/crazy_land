@@ -1,0 +1,7 @@
+<launch>
+  <rosparam command="load" file="$(find crazy_land)/params.yaml" ns="/crazy_params" />
+
+  <include file="$(find crazy_land)/launch/vicon.launch" />
+
+  <node pkg="crazy_land" type="jackal_control" name="jackal_control" output="screen" />
+</launch>

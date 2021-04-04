@@ -1,0 +1,8 @@
+<launch>
+  <rosparam command="load" file="$(find crazy_land)/params.yaml" ns="/crazy_params" />
+
+  <include file="$(find crazy_land)/launch/vicon.launch" />
+
+  <node pkg="crazy_land" type="flight_control.py" name="flight_control" output="screen" />
+</launch>
+

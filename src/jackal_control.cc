@@ -20,9 +20,9 @@ class JackalController {
     target_pose_.rotation.angle() = 0;
 
     std::string jackal_name;
-    pnode_.param<std::string>("jackal_name", jackal_name, "alvin_jk");
-    pnode_.param<int>("dead_button", btn_dead_, 1);
-    pnode_.param<int>("manual_button", btn_manual_, 2);
+    node_.getParam("/crazy_params/jackal_name", jackal_name);
+    node_.getParam("/crazy_params/btn_circle", btn_manual_);
+    node_.getParam("/crazy_params/btn_cross", btn_dead_);
     pnode_.param<int>("control_frequency", control_freq_, 100);
     pnode_.param<int>("axis_linear", axis_linear_, 1);
     pnode_.param<int>("axis_angular", axis_angular_, 0);
