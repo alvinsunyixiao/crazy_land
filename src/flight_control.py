@@ -113,6 +113,7 @@ class FlightControl:
 
         self._cmd_lock.acquire()
         if msg.buttons[self._btn_override]:
+            rospy.loginfo("Crazyflie joystick override triggered")
             self._joy_override = True
 
         if not self._joy_override:
@@ -120,6 +121,7 @@ class FlightControl:
             return
 
         if msg.buttons[self._btn_land] and self._is_flying:
+            rospy.loginfo("Crazyflie joystick landing inplace...")
             self.cf.high_level_commander.land(0.0, 3.0)
             self._is_flying = False
         self._cmd_lock.release()
@@ -165,5 +167,4 @@ if __name__ == "__main__":
     fc = FlightControl()
 
     rospy.spin()
-
 

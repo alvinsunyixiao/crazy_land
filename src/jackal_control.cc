@@ -30,8 +30,8 @@ class JackalController {
     pnode_.param<double>("max_abs_linear", max_abs_linear_, .7);
     pnode_.param<double>("max_abs_angular", max_abs_angular_, 2.);
     pnode_.param<double>("error_deadband", error_deadband_, 0.02);
-    pnode_.param<double>("gain_linear", gain_linear_, 4.0);
-    pnode_.param<double>("gain_angular", gain_angular_, 8.0);
+    pnode_.param<double>("gain_linear", gain_linear_, 2.2);
+    pnode_.param<double>("gain_angular", gain_angular_, 6.0);
     pnode_.param<double>("target_max_abs_x", target_max_abs_x_, 1.1);
     pnode_.param<double>("target_max_abs_y", target_max_abs_y_, 1.1);
     sub_joy_ = node_.subscribe("/bluetooth_teleop/joy", 10,
