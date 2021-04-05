@@ -7,3 +7,6 @@ btn_triangle: 3
 # vicon names
 jackal_name: "alvin_jk"
 crazyflie_name: "alvin_cf"
+
+# transforms
+jk_t_cf: [0.0295106, -0.00416421, 0.02068458]

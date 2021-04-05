@@ -1,0 +1,9 @@
+<launch>
+  <rosparam command="load" file="$(find crazy_land)/params.yaml" ns="/crazy_params" />
+
+  <include file="$(find crazy_land)/launch/vicon.launch" />
+
+  <node pkg="crazy_land" type="calibrate_pose.py" name="calibrate_pose" output="screen" />
+</launch>
+
+
