@@ -68,12 +68,12 @@ class JackalController {
       }
 
       // angular error
-      const Eigen::Vector2d position_diff = target_state.position - current_state.position;
+      const Eigen::Vector3d position_diff = target_state.position - current_state.position;
       const Eigen::Rotation2Dd target_rotation(std::atan2(position_diff.y(), position_diff.x()));
       const double error_rot = (target_rotation * current_state.rotation.inverse()).smallestAngle();
 
       // linear error
-      const double error_pos = position_diff.norm();
+      const double error_pos = position_diff.topRows<2>().norm();
 
       SendCommand(error_pos > error_deadband_ ? error_pos * gain_linear_ : 0.,
                   error_pos > error_deadband_ ? error_rot * gain_angular_ : 0.);
@@ -100,7 +100,7 @@ class JackalController {
   void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
     std::lock_guard<std::mutex> lock(mtx_state_);
     state_.rotation.angle() = 2 * atan2(msg->pose.orientation.z, msg->pose.orientation.w);
-    state_.position << msg->pose.position.x, msg->pose.position.y;
+    state_.position << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
   }
 
   void TargetHandler(const geometry_msgs::PoseStampedConstPtr& msg) {

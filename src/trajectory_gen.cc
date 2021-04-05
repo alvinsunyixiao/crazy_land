@@ -19,7 +19,7 @@ bool updated = false;
 void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
   std::unique_lock<std::mutex> lock(mtx_state);
   jackal_state.rotation.angle() = 2 * atan2(msg->pose.orientation.z, msg->pose.orientation.w);
-  jackal_state.position << msg->pose.position.x, msg->pose.position.y;
+  jackal_state.position << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
   updated = true;
 
   lock.unlock();
@@ -94,6 +94,7 @@ int main(int argc, char* argv[]) {
 
   // publishable topic
   auto jackal_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/jackal_ctrl", 10);
+  auto flight_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/flight_ctrl", 10);
 
   // create trajectory object
   const auto trajectory = MakeTrajectory();
@@ -108,10 +109,13 @@ int main(int argc, char* argv[]) {
     updated = false;
 
     // compute waypoint from trajectory
-    const auto msg = trajectory->GetWaypointNow();
+    const auto jk_msg = trajectory->GetWaypointNow();
+    auto cf_msg = trajectory->GetWaypoint(ros::Time::now() + ros::Duration(0.2));
+    cf_msg.pose.position.z = jackal_state.position.z() + 1.0;
+    cf_msg.header.frame_id = "FLYTO";
 
-    jackal_ctrl.publish(msg);
-    ROS_INFO("Publishing target @ (%f %f)", msg.pose.position.x, msg.pose.position.y);
+    jackal_ctrl.publish(jk_msg);
+    flight_ctrl.publish(cf_msg);
   }
 
   spinner.stop();

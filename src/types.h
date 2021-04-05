@@ -5,6 +5,6 @@
 
 struct jackal_state_t {
   Eigen::Rotation2Dd rotation;
-  Eigen::Vector2d position;
+  Eigen::Vector3d position;
 };
 
