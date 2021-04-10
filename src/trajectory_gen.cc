@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
 
   // publishable topic
   auto jackal_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/jackal_ctrl", 10);
-  auto flight_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/flight_ctrl", 10);
+  auto cf_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/crazyflie_ctrl", 10);
 
   // create trajectory object
   const auto trajectory = MakeTrajectory();
@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
     cf_msg.header.frame_id = "FLYTO";
 
     jackal_ctrl.publish(jk_msg);
-    flight_ctrl.publish(cf_msg);
+    cf_ctrl.publish(cf_msg);
   }
 
   spinner.stop();
