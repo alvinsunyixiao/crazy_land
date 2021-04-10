@@ -9,6 +9,7 @@ import rospy
 from cflib.crazyflie import Crazyflie
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Joy
+from std_msgs.msg import String
 
 class FlightControl:
 
@@ -40,10 +41,13 @@ class FlightControl:
                                         Joy, self._joy_control)
         self.cmd_sub = rospy.Subscriber("/crazy_land/crazyflie_ctrl",
                                         PoseStamped, self._send_command)
+        self.status_pub = rospy.Publisher("/crazy_land/crazyflie_status",
+                                          String, queue_size=10)
 
         self._wait_for_measurements()
         self._initialized = True
         rospy.loginfo("Crazyflie initialization complete")
+        self.status_pub.publish(String("Initialized"))
 
         rospy.on_shutdown(self._shutdown)
 

@@ -8,31 +8,70 @@
 
 #include "ros/ros.h"
 #include "geometry_msgs/PoseStamped.h"
+#include "std_msgs/String.h"
 
 #include "types.h"
 
 std::mutex mtx_state;
-std::condition_variable cv_state;
-jackal_state_t jackal_state;
-bool updated = false;
 
-void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
-  std::unique_lock<std::mutex> lock(mtx_state);
+jackal_state_t jackal_state;
+crazyflie_state_t crazyflie_state;
+
+void JackalMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
+  std::lock_guard<std::mutex> lock(mtx_state);
   jackal_state.rotation.angle() = 2 * atan2(msg->pose.orientation.z, msg->pose.orientation.w);
   jackal_state.position << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
-  updated = true;
+}
 
-  lock.unlock();
-  cv_state.notify_one();
+void CrazyflieMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
+  std::lock_guard<std::mutex> lock(mtx_state);
+  crazyflie_state.position << msg->pose.position.x,
+                              msg->pose.position.y,
+                              msg->pose.position.z;
+
+  switch (crazyflie_state.status) {
+    case INITIALIZED:
+      if (msg->header.stamp - crazyflie_state.transition_time > ros::Duration(5.)) {
+        crazyflie_state.status = TAKING_OFF;
+        crazyflie_state.transition_time = ros::Time::now();
+      }
+      break;
+    case TAKING_OFF:
+      if (msg->header.stamp - crazyflie_state.transition_time > ros::Duration(5.)) {
+        crazyflie_state.status = SYNCHRONIZING;
+        crazyflie_state.transition_time = ros::Time::now();
+      }
+    default:
+      break;
+  };
+}
+
+void CrazyflieStatusHandler(const std_msgs::StringConstPtr& msg) {
+  if (msg->data == "Initialized" && crazyflie_state.status == UNINITIALIZED) {
+    std::lock_guard<std::mutex> lock(mtx_state);
+    crazyflie_state.status = INITIALIZED;
+    crazyflie_state.transition_time = ros::Time::now();
+  }
 }
 
 class ParametricTraj {
  public:
+  virtual geometry_msgs::PoseStamped GetWaypoint(const ros::Time& t) const = 0;
+
   geometry_msgs::PoseStamped GetWaypointNow() const {
     return GetWaypoint(ros::Time::now());
   }
 
-  virtual geometry_msgs::PoseStamped GetWaypoint(const ros::Time& t) const = 0;
+  geometry_msgs::PoseStamped GetWaypoint(const ros::Time& t,
+                                         const std::string& frame_id,
+                                         double height) const {
+    auto msg = GetWaypoint(t);
+
+    msg.header.frame_id = frame_id;
+    msg.pose.position.z = height;
+
+    return msg;
+  }
 };
 
 class CircularTraj : public ParametricTraj {
@@ -81,15 +120,21 @@ std::unique_ptr<ParametricTraj> MakeTrajectory() {
 
 int main(int argc, char* argv[]) {
   ros::init(argc, argv, "jackal_trajectory");
-  ros::NodeHandle pnode("~");
 
   // subscribe to jackal measurement
-  std::string jackal_name;
-  pnode.param<std::string>("jackal_name", jackal_name, "alvin_jk");
   ros::NodeHandle node;
-  auto sub = node.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
-                            &MeasurementHandler);
-  ros::AsyncSpinner spinner(1);
+  std::string jackal_name, crazyflie_name;
+  node.getParam("/crazy_params/jackal_name", jackal_name);
+  node.getParam("/crazy_params/crazyflie_name", crazyflie_name);
+
+  auto jk_sub = node.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
+                               &JackalMeasurementHandler);
+  auto cf_sub = node.subscribe("/vrpn_client_node/" + crazyflie_name + "/pose", 10,
+                               &CrazyflieMeasurementHandler);
+  auto cf_status_sub = node.subscribe("/crazy_land/crazyflie_statue", 10,
+                                      &CrazyflieStatusHandler);
+
+  ros::AsyncSpinner spinner(2);
   spinner.start();
 
   // publishable topic
@@ -101,21 +146,27 @@ int main(int argc, char* argv[]) {
 
   // trajectory loop
   ros::Duration(3).sleep();
+  ros::Rate ctrl_rate(50);
   while (ros::ok()) {
-    std::unique_lock<std::mutex> lock(mtx_state);
-    cv_state.wait(lock, [&]() {
-      return updated;
-    });
-    updated = false;
-
     // compute waypoint from trajectory
-    const auto jk_msg = trajectory->GetWaypointNow();
-    auto cf_msg = trajectory->GetWaypoint(ros::Time::now() + ros::Duration(0.2));
-    cf_msg.pose.position.z = jackal_state.position.z() + 1.0;
-    cf_msg.header.frame_id = "FLYTO";
+    geometry_msgs::PoseStamped jk_msg, cf_msg;
+    const auto t = ros::Time::now();
+    jk_msg = trajectory->GetWaypoint(t);
+    cf_msg.header.frame_id = "NO_OP";
+
+    {
+      std::lock_guard<std::mutex> lock(mtx_state);
+      if (crazyflie_state.status == TAKING_OFF) {
+        cf_msg = trajectory->GetWaypoint(t, "TAKEOFF", jackal_state.position.z() + 1.0);
+      } else if (crazyflie_state.status == SYNCHRONIZING) {
+        cf_msg = trajectory->GetWaypoint(t, "FLYTO", jackal_state.position.z() + 1);
+      }
+    }
 
     jackal_ctrl.publish(jk_msg);
     cf_ctrl.publish(cf_msg);
+
+    ctrl_rate.sleep();
   }
 
   spinner.stop();
