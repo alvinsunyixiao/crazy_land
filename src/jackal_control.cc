@@ -112,7 +112,7 @@ class JackalController {
     const double x_safe = std::min(std::max(position.x, -target_max_abs_x_), target_max_abs_x_);
     const double y_safe = std::min(std::max(position.y, -target_max_abs_y_), target_max_abs_y_);
 
-    target_pose_.position << x_safe, y_safe;
+    target_pose_.position << x_safe, y_safe, 0;
   }
 
   void SendCommand(const double linear_vel, const double angular_vel) {
