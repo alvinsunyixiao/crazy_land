@@ -25,6 +25,8 @@ class FlightControl:
         self._initialized = False
         self._is_flying = False
         self._joy_override = False
+        self._connect_event = None
+        self._disconnect_event = None
         self._cmd_lock = threading.Lock()
 
         self._add_callbacks()
@@ -100,11 +102,8 @@ class FlightControl:
             rospy.loginfo(f"Crazyflie flying towards {msg.pose.position}")
             self.cf.commander.send_position_setpoint(msg.pose.position.x,
                                                      msg.pose.position.y,
-                                                     msg.pose.position.z, 0)
-            #self.cf.high_level_commander.go_to(msg.pose.position.x,
-            #                                   msg.pose.position.y,
-            #                                   msg.pose.position.z,
-            #                                   0, duration)
+                                                     msg.pose.position.z,
+                                                     0)
         self._cmd_lock.release()
 
     def _joy_control(self, msg: Joy):
@@ -112,9 +111,11 @@ class FlightControl:
             return
 
         self._cmd_lock.acquire()
-        if msg.buttons[self._btn_override]:
+        if msg.buttons[self._btn_override] and not self._joy_override:
             rospy.loginfo("Crazyflie joystick override triggered")
             self._joy_override = True
+            # return home on joystick override
+            self.cf.high_level_commander.go_to(0.0, 0.0, 1.0, 0.0, 5.)
 
         if not self._joy_override:
             self._cmd_lock.release()

@@ -1,10 +1,6 @@
 <launch>
   <rosparam command="load" file="$(find crazy_land)/params.yaml" ns="/crazy_params" />
 
-  <include file="$(find crazy_land)/launch/vicon.launch" />
-
-  <node pkg="crazy_land" type="jackal_control" name="jackal_control" output="screen" />
-
   <node pkg="crazy_land" type="trajectory_gen" name="trajectory_gen" output="screen">
     <param name="type" value="circular" />
     <param name="traj/center_x" value="0.0" />
