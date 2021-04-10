@@ -76,9 +76,6 @@ class FlightControl:
         # enable high level commander
         self.cf.param.set_value("commander.enHighLevel", "1")
 
-        # enable mellinger controller
-        self.cf.param.set_value("stabilizer.controller", "2")
-
         # reset Kalman Estimator
         self.cf.param.set_value("kalman.resetEstimation", "1")
         time.sleep(0.1)
@@ -101,10 +98,13 @@ class FlightControl:
             self._is_flying = False
         elif msg.header.frame_id == "FLYTO" and self._is_flying:
             rospy.loginfo(f"Crazyflie flying towards {msg.pose.position}")
-            self.cf.high_level_commander.go_to(msg.pose.position.x,
-                                               msg.pose.position.y,
-                                               msg.pose.position.z,
-                                               0, duration)
+            self.cf.commander.send_position_setpoint(msg.pose.position.x,
+                                                     msg.pose.position.y,
+                                                     msg.pose.position.z, 0)
+            #self.cf.high_level_commander.go_to(msg.pose.position.x,
+            #                                   msg.pose.position.y,
+            #                                   msg.pose.position.z,
+            #                                   0, duration)
         self._cmd_lock.release()
 
     def _joy_control(self, msg: Joy):
