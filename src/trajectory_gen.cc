@@ -58,22 +58,7 @@ void CrazyflieStatusHandler(const std_msgs::StringConstPtr& msg) {
 
 class ParametricTraj {
  public:
-  virtual geometry_msgs::PoseStamped GetWaypoint(const ros::Time& t) const = 0;
-
-  geometry_msgs::PoseStamped GetWaypointNow() const {
-    return GetWaypoint(ros::Time::now());
-  }
-
-  geometry_msgs::PoseStamped GetWaypoint(const ros::Time& t,
-                                         const std::string& frame_id,
-                                         double height = 0) const {
-    auto msg = GetWaypoint(t);
-
-    msg.header.frame_id = frame_id;
-    msg.pose.position.z = height;
-
-    return msg;
-  }
+  virtual pose_3d_t GetWaypoint(const ros::Time& t) const = 0;
 };
 
 class CircularTraj : public ParametricTraj {
@@ -81,8 +66,8 @@ class CircularTraj : public ParametricTraj {
   CircularTraj(const Eigen::Vector2d& center, const double& radius, const double period)
     : center_(center), radius_(radius), period_(period) {}
 
-  geometry_msgs::PoseStamped GetWaypoint(const ros::Time& t) const override {
-    geometry_msgs::PoseStamped msg;
+  pose_3d_t GetWaypoint(const ros::Time& t) const override {
+    pose_3d_t pose;
     const double t_sec = t.toSec();
 
     msg.header.stamp = t;
@@ -97,7 +82,7 @@ class CircularTraj : public ParametricTraj {
     msg.pose.orientation.z = R.z();
     msg.pose.orientation.w = R.w();
 
-    return msg;
+    return pose;
   }
 
  private:
@@ -136,10 +121,13 @@ int main(int argc, char* argv[]) {
   // parse parameters
   std::string jackal_name, crazyflie_name;
   std::vector<double> jk_t_cf_arr;
+  std::vector<double> jk_R_cf_arr;
   node.getParam("/crazy_params/jackal_name", jackal_name);
   node.getParam("/crazy_params/crazyflie_name", crazyflie_name);
   node.getParam("/crazy_params/jk_t_cf", jk_t_cf_arr);
+  node.getParam("/crazy_params/jk_R_cf", jk_R_cf_arr);
   const Eigen::Vector3d jk_t_cf(jk_t_cf_arr[0], jk_t_cf_arr[1], jk_t_cf_arr[2]);
+  const Eigen::Quaterniond jk_R_cf(jk_R_cf_arr[3], jk_R_cf_arr[0], jk_R_cf_arr[1], jk_R_cf_arr[2]);
 
   // subscribe to jackal measurement
   auto jk_sub = node.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,

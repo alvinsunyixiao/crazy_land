@@ -6,7 +6,7 @@ from geometry_msgs.msg import PoseStamped
 
 if __name__ == "__main__":
     rospy.init_node("takeoff_test")
-    pub = rospy.Publisher("/crazy_land/crazyflie_ctrl", PoseStamped, queue_size=10)
+    pub = rospy.Publisher("/crazy_land/crazyflie/ctrl", PoseStamped, queue_size=10)
 
     rospy.sleep(1)
     rospy.loginfo("Starting to test takeoff...")
