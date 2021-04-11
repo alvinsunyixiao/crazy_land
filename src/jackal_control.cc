@@ -38,7 +38,7 @@ class JackalController {
                                 &JackalController::JoystickHandler, this);
     sub_meas_ = node_.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
                                 &JackalController::MeasurementHandler, this);
-    sub_target_ = node_.subscribe("/crazy_land/jackal_ctrl", 10,
+    sub_target_ = node_.subscribe("/crazy_land/jackal/ctrl", 10,
                                   &JackalController::TargetHandler, this);
     pub_cmd_ = node_.advertise<geometry_msgs::Twist>("/cmd_vel", 10);
   }
@@ -49,7 +49,6 @@ class JackalController {
 
  private:
   void ControlLoop() {
-    ros::Duration(5).sleep();
     ros::Rate rate(control_freq_);
     while (ros::ok()) {
       {
@@ -75,8 +74,12 @@ class JackalController {
       // linear error
       const double error_pos = position_diff.topRows<2>().norm();
 
-      SendCommand(error_pos > error_deadband_ ? error_pos * gain_linear_ : 0.,
-                  error_pos > error_deadband_ ? error_rot * gain_angular_ : 0.);
+      if (current_state.status == RUNNING) {
+        SendCommand(error_pos > error_deadband_ ? error_pos * gain_linear_ : 0.,
+                    error_pos > error_deadband_ ? error_rot * gain_angular_ : 0.);
+      } else if (current_state.status == STOPPED) {
+        SendCommand(0., 0.);
+      }
       rate.sleep();
     }
   }
@@ -101,18 +104,30 @@ class JackalController {
     std::lock_guard<std::mutex> lock(mtx_state_);
     state_.rotation.angle() = 2 * atan2(msg->pose.orientation.z, msg->pose.orientation.w);
     state_.position << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+
+    if (state_.status == UNINITIALIZED) { state_.status = INITIALIZED; }
   }
 
   void TargetHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
     const auto position = msg->pose.position;
+    {
+      std::lock_guard<std::mutex> lock(mtx_target_);
+      // clamp x y to stay within bound
+      const double x_safe = std::min(std::max(position.x, -target_max_abs_x_), target_max_abs_x_);
+      const double y_safe = std::min(std::max(position.y, -target_max_abs_y_), target_max_abs_y_);
+      target_pose_.position << x_safe, y_safe, 0;
+    }
 
-    ROS_DEBUG("Tracking target @ (%f %f)", position.x, position.y);
-    std::lock_guard<std::mutex> lock(mtx_target_);
-    // clamp x y to stay within bound
-    const double x_safe = std::min(std::max(position.x, -target_max_abs_x_), target_max_abs_x_);
-    const double y_safe = std::min(std::max(position.y, -target_max_abs_y_), target_max_abs_y_);
+    {
+      std::lock_guard<std::mutex> lock(mtx_state_);
+      if (msg->header.frame_id == "GOTO" && state_.status != UNINITIALIZED) {
+        state_.status = RUNNING;
+        ROS_DEBUG("Tracking target @ (%f %f)", position.x, position.y);
+      } else if (msg->header.frame_id == "STOP" && state_.status != UNINITIALIZED) {
+        state_.status = STOPPED;
+      }
+    }
 
-    target_pose_.position << x_safe, y_safe, 0;
   }
 
   void SendCommand(const double linear_vel, const double angular_vel) {

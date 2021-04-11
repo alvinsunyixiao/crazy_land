@@ -66,7 +66,7 @@ class ParametricTraj {
 
   geometry_msgs::PoseStamped GetWaypoint(const ros::Time& t,
                                          const std::string& frame_id,
-                                         double height) const {
+                                         double height = 0) const {
     auto msg = GetWaypoint(t);
 
     msg.header.frame_id = frame_id;
@@ -88,6 +88,14 @@ class CircularTraj : public ParametricTraj {
     msg.header.stamp = t;
     msg.pose.position.x = radius_ * std::cos(2 * M_PI * t_sec / period_) + center_.x();
     msg.pose.position.y = radius_ * std::sin(2 * M_PI * t_sec / period_) + center_.y();
+
+    const double theta = 2 * M_PI * t_sec / period_ + M_PI / 2;
+    const Eigen::Quaterniond R(Eigen::AngleAxisd(theta, Eigen::Vector3d::UnitZ()));
+
+    msg.pose.orientation.x = R.x();
+    msg.pose.orientation.y = R.y();
+    msg.pose.orientation.z = R.z();
+    msg.pose.orientation.w = R.w();
 
     return msg;
   }
@@ -123,25 +131,30 @@ std::unique_ptr<ParametricTraj> MakeTrajectory() {
 int main(int argc, char* argv[]) {
   ros::init(argc, argv, "jackal_trajectory");
 
-  // subscribe to jackal measurement
   ros::NodeHandle node;
+
+  // parse parameters
   std::string jackal_name, crazyflie_name;
+  std::vector<double> jk_t_cf_arr;
   node.getParam("/crazy_params/jackal_name", jackal_name);
   node.getParam("/crazy_params/crazyflie_name", crazyflie_name);
+  node.getParam("/crazy_params/jk_t_cf", jk_t_cf_arr);
+  const Eigen::Vector3d jk_t_cf(jk_t_cf_arr[0], jk_t_cf_arr[1], jk_t_cf_arr[2]);
 
+  // subscribe to jackal measurement
   auto jk_sub = node.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
                                &JackalMeasurementHandler);
   auto cf_sub = node.subscribe("/vrpn_client_node/" + crazyflie_name + "/pose", 10,
                                &CrazyflieMeasurementHandler);
-  auto cf_status_sub = node.subscribe("/crazy_land/crazyflie_status", 10,
+  auto cf_status_sub = node.subscribe("/crazy_land/crazyflie/status", 10,
                                       &CrazyflieStatusHandler);
 
   ros::AsyncSpinner spinner(2);
   spinner.start();
 
   // publishable topic
-  auto jackal_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/jackal_ctrl", 10);
-  auto cf_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/crazyflie_ctrl", 10);
+  auto jackal_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/jackal/ctrl", 10);
+  auto cf_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/crazyflie/ctrl", 10);
 
   // create trajectory object
   const auto trajectory = MakeTrajectory();
@@ -153,7 +166,7 @@ int main(int argc, char* argv[]) {
     // compute waypoint from trajectory
     geometry_msgs::PoseStamped jk_msg, cf_msg;
     const auto t = ros::Time::now();
-    jk_msg = trajectory->GetWaypoint(t);
+    jk_msg = trajectory->GetWaypoint(t, "STOP");
     cf_msg.header.frame_id = "NO_OP";
 
     {
@@ -163,11 +176,21 @@ int main(int argc, char* argv[]) {
       } else if (crazyflie_state.status == SYNCHRONIZING) {
         cf_msg = trajectory->GetWaypoint(t, "FLYTO", jackal_state.position.z() + .3);
       }
+
+      if (crazyflie_state.status == INITIALIZED ||
+          crazyflie_state.status == UNINITIALIZED) {
+        jk_msg.header.frame_id = "STOP";
+      } else {
+        jk_msg.header.frame_id = "GOTO";
+      }
     }
+
+    cf_msg.pose.position.x += jk_t_cf.x();
+    cf_msg.pose.position.y += jk_t_cf.y();
+    cf_msg.pose.position.z += jk_t_cf.z();
 
     jackal_ctrl.publish(jk_msg);
     cf_ctrl.publish(cf_msg);
-
     ctrl_rate.sleep();
   }
 

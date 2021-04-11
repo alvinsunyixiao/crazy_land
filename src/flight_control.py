@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import math
 import threading
 import time
 
@@ -39,9 +40,9 @@ class FlightControl:
                                           PoseStamped, self._send_ext_pose)
         self.joy_sub = rospy.Subscriber("/bluetooth_teleop/joy",
                                         Joy, self._joy_control)
-        self.cmd_sub = rospy.Subscriber("/crazy_land/crazyflie_ctrl",
+        self.cmd_sub = rospy.Subscriber("/crazy_land/crazyflie/ctrl",
                                         PoseStamped, self._send_command)
-        self.status_pub = rospy.Publisher("/crazy_land/crazyflie_status",
+        self.status_pub = rospy.Publisher("/crazy_land/crazyflie/status",
                                           String, queue_size=10)
 
         self._wait_for_measurements()
@@ -104,10 +105,9 @@ class FlightControl:
             self._is_flying = False
         elif msg.header.frame_id == "FLYTO" and self._is_flying:
             rospy.logdebug(f"Crazyflie flying towards {msg.pose.position}")
-            self.cf.commander.send_position_setpoint(msg.pose.position.x,
-                                                     msg.pose.position.y,
-                                                     msg.pose.position.z,
-                                                     0)
+            self.cf.commander.send_position_setpoint(
+                    msg.pose.position.x, msg.pose.position.y, msg.pose.position.z,
+                    math.atan2(msg.pose.orientation.z, msg.pose.orientation.w))
         self._cmd_lock.release()
 
     def _joy_control(self, msg: Joy):
