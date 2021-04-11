@@ -8,21 +8,21 @@
 #include "geometry_msgs/PoseStamped.h"
 
 struct pose_3d_t {
-  Eigen::Vector3d position;
-  Eigen::Quaternion3d orientation;
-  double timestamp;
+  Eigen::Vector3d t;
+  Eigen::Quaterniond R;
+  ros::Time timestamp;
 
-  void FillPoseStampedMsg(geometry_msgs::PoseStamped* msg) {
-    msg->pose.position.x = position.x();
-    msg->pose.position.y = position.y();
-    msg->pose.position.z = position.z();
+  void FillPoseStampedMsg(geometry_msgs::PoseStamped* msg) const {
+    msg->pose.position.x = t.x();
+    msg->pose.position.y = t.y();
+    msg->pose.position.z = t.z();
 
-    msg->pose.orientation.x = orientation.x();
-    msg->pose.orientation.y = orientation.y();
-    msg->pose.orientation.z = orientation.z();
-    msg->pose.orientation.w = orientation.w();
+    msg->pose.orientation.x = R.x();
+    msg->pose.orientation.y = R.y();
+    msg->pose.orientation.z = R.z();
+    msg->pose.orientation.w = R.w();
   }
-}
+};
 
 enum robot_status_t {
   // shared status

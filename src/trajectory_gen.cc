@@ -70,17 +70,13 @@ class CircularTraj : public ParametricTraj {
     pose_3d_t pose;
     const double t_sec = t.toSec();
 
-    msg.header.stamp = t;
-    msg.pose.position.x = radius_ * std::cos(2 * M_PI * t_sec / period_) + center_.x();
-    msg.pose.position.y = radius_ * std::sin(2 * M_PI * t_sec / period_) + center_.y();
+    pose.timestamp = t;
+    pose.t << radius_ * std::cos(2 * M_PI * t_sec / period_) + center_.x(),
+              radius_ * std::sin(2 * M_PI * t_sec / period_) + center_.y(),
+              0;
 
     const double theta = 2 * M_PI * t_sec / period_ + M_PI / 2;
-    const Eigen::Quaterniond R(Eigen::AngleAxisd(theta, Eigen::Vector3d::UnitZ()));
-
-    msg.pose.orientation.x = R.x();
-    msg.pose.orientation.y = R.y();
-    msg.pose.orientation.z = R.z();
-    msg.pose.orientation.w = R.w();
+    pose.R = Eigen::AngleAxisd(theta, Eigen::Vector3d::UnitZ());
 
     return pose;
   }
@@ -153,16 +149,24 @@ int main(int argc, char* argv[]) {
   while (ros::ok()) {
     // compute waypoint from trajectory
     geometry_msgs::PoseStamped jk_msg, cf_msg;
+    jk_msg.header.frame_id = cf_msg.header.frame_id = "NO_OP";
     const auto t = ros::Time::now();
-    jk_msg = trajectory->GetWaypoint(t, "STOP");
-    cf_msg.header.frame_id = "NO_OP";
+    const pose_3d_t jk_pose = trajectory->GetWaypoint(t);
+    const pose_3d_t cf_jk_pose = trajectory->GetWaypoint(t);
+    const pose_3d_t cf_pose = {
+      .t = cf_jk_pose.R * jk_t_cf + cf_jk_pose.t + Eigen::Vector3d::UnitZ() * .3,
+      .R = cf_jk_pose.R * jk_R_cf,
+      .timestamp = cf_jk_pose.timestamp,
+    };
 
     {
       std::lock_guard<std::mutex> lock(mtx_state);
       if (crazyflie_state.status == TAKING_OFF) {
-        cf_msg = trajectory->GetWaypoint(t, "TAKEOFF", jackal_state.position.z() + .3);
+
+        cf_msg.header.frame_id = "TAKEOFF";
+
       } else if (crazyflie_state.status == SYNCHRONIZING) {
-        cf_msg = trajectory->GetWaypoint(t, "FLYTO", jackal_state.position.z() + .3);
+        cf_msg.header.frame_id = "FLYTO";
       }
 
       if (crazyflie_state.status == INITIALIZED ||
@@ -173,9 +177,8 @@ int main(int argc, char* argv[]) {
       }
     }
 
-    cf_msg.pose.position.x += jk_t_cf.x();
-    cf_msg.pose.position.y += jk_t_cf.y();
-    cf_msg.pose.position.z += jk_t_cf.z();
+    jk_pose.FillPoseStampedMsg(&jk_msg);
+    cf_jk_pose.FillPoseStampedMsg(&cf_msg);
 
     jackal_ctrl.publish(jk_msg);
     cf_ctrl.publish(cf_msg);
