@@ -106,7 +106,7 @@ class JackalController {
   void TargetHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
     const auto position = msg->pose.position;
 
-    ROS_INFO("Tracking target @ (%f %f)", position.x, position.y);
+    ROS_DEBUG("Tracking target @ (%f %f)", position.x, position.y);
     std::lock_guard<std::mutex> lock(mtx_target_);
     // clamp x y to stay within bound
     const double x_safe = std::min(std::max(position.x, -target_max_abs_x_), target_max_abs_x_);

@@ -103,7 +103,7 @@ class FlightControl:
             self.cf.high_level_commander.land(msg.pose.position.z, duration)
             self._is_flying = False
         elif msg.header.frame_id == "FLYTO" and self._is_flying:
-            rospy.loginfo(f"Crazyflie flying towards {msg.pose.position}")
+            rospy.logdebug(f"Crazyflie flying towards {msg.pose.position}")
             self.cf.commander.send_position_setpoint(msg.pose.position.x,
                                                      msg.pose.position.y,
                                                      msg.pose.position.z,
