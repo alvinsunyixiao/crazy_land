@@ -152,9 +152,10 @@ int main(int argc, char* argv[]) {
     jk_msg.header.frame_id = cf_msg.header.frame_id = "NO_OP";
     const auto t = ros::Time::now();
     const pose_3d_t jk_pose = trajectory->GetWaypoint(t);
-    const pose_3d_t cf_jk_pose = trajectory->GetWaypoint(t);
+    const pose_3d_t cf_jk_pose = trajectory->GetWaypoint(t + ros::Duration(.13));
     const pose_3d_t cf_pose = {
-      .t = cf_jk_pose.R * jk_t_cf + cf_jk_pose.t + Eigen::Vector3d::UnitZ() * .3,
+      .t = cf_jk_pose.R * jk_t_cf + cf_jk_pose.t +
+           Eigen::Vector3d::UnitZ() * (.2 + jackal_state.position.z()),
       .R = cf_jk_pose.R * jk_R_cf,
       .timestamp = cf_jk_pose.timestamp,
     };
@@ -178,7 +179,7 @@ int main(int argc, char* argv[]) {
     }
 
     jk_pose.FillPoseStampedMsg(&jk_msg);
-    cf_jk_pose.FillPoseStampedMsg(&cf_msg);
+    cf_pose.FillPoseStampedMsg(&cf_msg);
 
     jackal_ctrl.publish(jk_msg);
     cf_ctrl.publish(cf_msg);
