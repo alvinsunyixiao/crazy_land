@@ -103,6 +103,10 @@ class FlightControl:
             rospy.loginfo("Crazyflie landing...")
             self.cf.high_level_commander.land(msg.pose.position.z, duration)
             self._is_flying = False
+        elif msg.header.frame_id == "SHUTDOWN":
+            rospy.loginfo("Crazyflie shutting down...")
+            self.cf.commander.send_stop_setpoint()
+            self._is_flying = False
         elif msg.header.frame_id == "FLYTO" and self._is_flying:
             angle = 2 * math.atan2(msg.pose.orientation.z, msg.pose.orientation.w)
             self.cf.commander.send_position_setpoint(msg.pose.position.x,

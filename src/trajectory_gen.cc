@@ -42,6 +42,11 @@ void CrazyflieMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) 
         crazyflie_state.transition_time = ros::Time::now();
       }
       break;
+    case SYNCHRONIZING:
+      if (msg->header.stamp - crazyflie_state.transition_time > ros::Duration(10.)) {
+        crazyflie_state.status = ON_VEHICLE;
+        crazyflie_state.transition_time = ros::Time::now();
+      }
     default:
       break;
   };
@@ -155,7 +160,7 @@ int main(int argc, char* argv[]) {
     const pose_3d_t cf_jk_pose = trajectory->GetWaypoint(t + ros::Duration(.13));
     const pose_3d_t cf_pose = {
       .t = cf_jk_pose.R * jk_t_cf + cf_jk_pose.t +
-           Eigen::Vector3d::UnitZ() * (.2 + jackal_state.position.z()),
+           Eigen::Vector3d::UnitZ() * (.15 + jackal_state.position.z()),
       .R = cf_jk_pose.R * jk_R_cf,
       .timestamp = cf_jk_pose.timestamp,
     };
@@ -168,6 +173,8 @@ int main(int argc, char* argv[]) {
 
       } else if (crazyflie_state.status == SYNCHRONIZING) {
         cf_msg.header.frame_id = "FLYTO";
+      } else if (crazyflie_state.status == ON_VEHICLE) {
+        cf_msg.header.frame_id = "SHUTDOWN";
       }
 
       if (crazyflie_state.status == INITIALIZED ||

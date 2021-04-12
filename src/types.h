@@ -33,6 +33,7 @@ enum robot_status_t {
   TAKING_OFF,
   SYNCHRONIZING,
   DOCKING,
+  ON_VEHICLE,
 
   // jackal status
   RUNNING,
