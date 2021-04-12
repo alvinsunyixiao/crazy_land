@@ -44,9 +44,16 @@ void CrazyflieMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) 
       break;
     case SYNCHRONIZING:
       if (msg->header.stamp - crazyflie_state.transition_time > ros::Duration(10.)) {
+        crazyflie_state.status = DOCKING;
+        crazyflie_state.transition_time = ros::Time::now();
+      }
+      break;
+    case DOCKING:
+      if (msg->header.stamp - crazyflie_state.transition_time > ros::Duration(10.)) {
         crazyflie_state.status = ON_VEHICLE;
         crazyflie_state.transition_time = ros::Time::now();
       }
+      break;
     default:
       break;
   };
@@ -158,9 +165,9 @@ int main(int argc, char* argv[]) {
     const auto t = ros::Time::now();
     const pose_3d_t jk_pose = trajectory->GetWaypoint(t);
     const pose_3d_t cf_jk_pose = trajectory->GetWaypoint(t + ros::Duration(.13));
-    const pose_3d_t cf_pose = {
+    pose_3d_t cf_pose = {
       .t = cf_jk_pose.R * jk_t_cf + cf_jk_pose.t +
-           Eigen::Vector3d::UnitZ() * (.15 + jackal_state.position.z()),
+           Eigen::Vector3d::UnitZ() * jackal_state.position.z(),
       .R = cf_jk_pose.R * jk_R_cf,
       .timestamp = cf_jk_pose.timestamp,
     };
@@ -168,11 +175,15 @@ int main(int argc, char* argv[]) {
     {
       std::lock_guard<std::mutex> lock(mtx_state);
       if (crazyflie_state.status == TAKING_OFF) {
-
         cf_msg.header.frame_id = "TAKEOFF";
-
+        cf_pose.t.z() += .5;
       } else if (crazyflie_state.status == SYNCHRONIZING) {
         cf_msg.header.frame_id = "FLYTO";
+        cf_pose.t.z() += .5;
+      } else if (crazyflie_state.status == DOCKING) {
+        cf_msg.header.frame_id = "FLYTO";
+        const double dt = (ros::Time::now() - crazyflie_state.transition_time).toSec();
+        cf_pose.t.z() += std::max(.5 * (5 - dt) / 5., 0.1);
       } else if (crazyflie_state.status == ON_VEHICLE) {
         cf_msg.header.frame_id = "SHUTDOWN";
       }
