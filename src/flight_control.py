@@ -121,7 +121,7 @@ class FlightControl:
             return
 
         self._cmd_lock.acquire()
-        if msg.buttons[self._btn_override] and not self._joy_override:
+        if msg.buttons[self._btn_override] and not self._joy_override and self._is_flying:
             rospy.loginfo("Crazyflie joystick override triggered")
             self._joy_override = True
             # return home on joystick override
