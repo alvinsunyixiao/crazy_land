@@ -183,7 +183,7 @@ int main(int argc, char* argv[]) {
       } else if (crazyflie_state.status == DOCKING) {
         cf_msg.header.frame_id = "FLYTO";
         const double dt = (ros::Time::now() - crazyflie_state.transition_time).toSec();
-        cf_pose.t.z() += std::max(.5 * (5 - dt) / 5., 0.1);
+        cf_pose.t.z() += std::max(.5 * (5 - dt) / 5., 0.15);
       } else if (crazyflie_state.status == ON_VEHICLE) {
         cf_msg.header.frame_id = "SHUTDOWN";
       }
