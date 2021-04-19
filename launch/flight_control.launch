@@ -3,6 +3,7 @@
 
   <include file="$(find crazy_land)/launch/vicon.launch" />
 
+  <node pkg="crazy_land" type="visualizer.py" name="visualizer" output="screen"/>
   <node pkg="crazy_land" type="flight_control.py" name="flight_control" output="screen" />
 </launch>
 

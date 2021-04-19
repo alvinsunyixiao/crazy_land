@@ -45,10 +45,11 @@ class Visualizer:
 
         # relative position
         jk_t_cf = world_R_jk.inv().as_matrix() @ (world_t_cf - world_t_jk)
-        jk_t_cf_int = np.round(jk_t_cf / .05).astype(int)
+        jk_t_cf_int = np.round(jk_t_cf / .05).astype(int).flatten()
 
         self.ser.write(struct.pack("<ii", jk_t_cf_int[0], jk_t_cf_int[1]))
 
 if __name__ == "__main__":
+    rospy.init_node("visualizer")
     viz = Visualizer()
     viz.run()
