@@ -5,6 +5,8 @@
   <node pkg="crazy_land" type="flight_control.py" name="flight_control" output="screen" />
   <node pkg="crazy_land" type="jackal_control" name="jackal_control" output="screen" />
 
+  <node pkg="crazy_land" type="visualizer.py" name="visualizer" output="screen"/>
+
   <node pkg="crazy_land" type="trajectory_gen" name="trajectory_gen" output="screen">
     <param name="type" value="circular" />
     <param name="traj/center_x" value="0.0" />

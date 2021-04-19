@@ -18,6 +18,7 @@ class Visualizer:
         jk_sub = message_filters.Subscriber(f"/vrpn_client_node/{jk_name}/pose", PoseStamped)
         self.sync_sub = message_filters.ApproximateTimeSynchronizer([cf_sub, jk_sub], 10, 0.1)
         self.ser = serial.Serial(rospy.get_param("/crazy_params/serial_port"))
+        self.bound_accuracy = rospy.get_param("/crazy_params/bound_accuracy")
 
     def run(self):
         self.sync_sub.registerCallback(self.pose_callback)
@@ -45,7 +46,7 @@ class Visualizer:
 
         # relative position
         jk_t_cf = world_R_jk.inv().as_matrix() @ (world_t_cf - world_t_jk)
-        jk_t_cf_int = np.round(jk_t_cf / .05).astype(int).flatten()
+        jk_t_cf_int = np.round(jk_t_cf / self.bound_accuracy).astype(int).flatten()
 
         self.ser.write(struct.pack("<ii", jk_t_cf_int[0], jk_t_cf_int[1]))
 

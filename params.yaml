@@ -12,4 +12,6 @@ crazyflie_name: "alvin_cf"
 jk_t_cf: [ 0.00231743, 0.01967287, 0.0215242 ]
 jk_R_cf: [ 2.38236452e-04, 6.72903869e-03, -1.20958509e-02, 9.99904172e-01 ]
 
+# visualizer
 serial_port: "/dev/ttyACM1"
+bound_accuracy: 0.15
