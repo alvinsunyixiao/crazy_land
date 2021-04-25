@@ -19,6 +19,8 @@ class Visualizer:
         self.sync_sub = message_filters.ApproximateTimeSynchronizer([cf_sub, jk_sub], 10, 0.1)
         self.ser = serial.Serial(rospy.get_param("/crazy_params/serial_port"))
         self.bound_accuracy = rospy.get_param("/crazy_params/bound_accuracy")
+        self.jk_t_target = np.array(rospy.get_param("/crazy_params/jk_t_cf"))[:, None]
+        self.jk_R_target = R.from_quat(rospy.get_param("/crazy_params/jk_R_cf"))
 
     def run(self):
         self.sync_sub.registerCallback(self.pose_callback)
@@ -38,6 +40,9 @@ class Visualizer:
             jk_msg.pose.position.z,
         ])[:, None]
 
+        world_R_target = world_R_jk * self.jk_R_target
+        world_t_target = world_R_jk.as_matrix() @ self.jk_t_target + world_t_jk
+
         world_t_cf = np.array([
             cf_msg.pose.position.x,
             cf_msg.pose.position.y,
@@ -45,10 +50,10 @@ class Visualizer:
         ])[:, None]
 
         # relative position
-        jk_t_cf = world_R_jk.inv().as_matrix() @ (world_t_cf - world_t_jk)
-        jk_t_cf_int = np.round(jk_t_cf / self.bound_accuracy).astype(int).flatten()
+        target_t_cf = world_R_target.inv().as_matrix() @ (world_t_cf - world_t_target)
+        target_t_cf_int = np.round(target_t_cf / self.bound_accuracy).astype(int).flatten()
 
-        self.ser.write(struct.pack("<ii", jk_t_cf_int[0], jk_t_cf_int[1]))
+        self.ser.write(struct.pack("<ii", target_t_cf_int[0], target_t_cf_int[1]))
 
 if __name__ == "__main__":
     rospy.init_node("visualizer")

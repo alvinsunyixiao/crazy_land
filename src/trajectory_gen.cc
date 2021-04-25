@@ -49,8 +49,20 @@ void CrazyflieMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) 
       }
       break;
     case DOCKING:
-      if (msg->header.stamp - crazyflie_state.transition_time > ros::Duration(10.)) {
+      if (msg->header.stamp - crazyflie_state.transition_time > ros::Duration(5.)) {
         crazyflie_state.status = ON_VEHICLE;
+        crazyflie_state.transition_time = ros::Time::now();
+      }
+      break;
+    case ON_VEHICLE:
+      if (msg->header.stamp - crazyflie_state.transition_time > ros::Duration(10.)) {
+        crazyflie_state.status = LEAVING;
+        crazyflie_state.transition_time = ros::Time::now();
+      }
+      break;
+    case LEAVING:
+      if (msg->header.stamp - crazyflie_state.transition_time > ros::Duration(5.)) {
+        crazyflie_state.status = RETURNING;
         crazyflie_state.transition_time = ros::Time::now();
       }
       break;
@@ -174,6 +186,7 @@ int main(int argc, char* argv[]) {
 
     {
       std::lock_guard<std::mutex> lock(mtx_state);
+      const double dt = (ros::Time::now() - crazyflie_state.transition_time).toSec();
       if (crazyflie_state.status == TAKING_OFF) {
         cf_msg.header.frame_id = "TAKEOFF";
         cf_pose.t.z() += .5;
@@ -182,10 +195,17 @@ int main(int argc, char* argv[]) {
         cf_pose.t.z() += .5;
       } else if (crazyflie_state.status == DOCKING) {
         cf_msg.header.frame_id = "FLYTO";
-        const double dt = (ros::Time::now() - crazyflie_state.transition_time).toSec();
         cf_pose.t.z() += std::max(.5 * (5 - dt) / 5., 0.15);
       } else if (crazyflie_state.status == ON_VEHICLE) {
         cf_msg.header.frame_id = "SHUTDOWN";
+      } else if (crazyflie_state.status == LEAVING) {
+        cf_msg.header.frame_id = "FLYTO";
+        cf_pose.t.z() += std::max(.5 * dt / 5., 0.15);
+      } else if (crazyflie_state.status == RETURNING) {
+        cf_msg.header.frame_id = "RETURN";
+        cf_pose.t.x() = -1;
+        cf_pose.t.y() = 1;
+        cf_pose.t.z() = 1;
       }
 
       if (crazyflie_state.status == INITIALIZED ||

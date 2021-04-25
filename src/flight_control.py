@@ -78,7 +78,7 @@ class FlightControl:
         self.cf.param.set_value("stabilizer.estimator", "2")
 
         # EKF orientation uncertainty (loser then default)
-        self.cf.param.set_value("locSrv.extQuatStdDev", 0.03)
+        self.cf.param.set_value("locSrv.extQuatStdDev", 0.05)
 
         # enable high level commander
         self.cf.param.set_value("commander.enHighLevel", "1")
@@ -94,7 +94,7 @@ class FlightControl:
             self._cmd_lock.release()
             return
 
-        duration = (msg.header.stamp - rospy.Time.now()).to_sec()
+        duration = max((msg.header.stamp - rospy.Time.now()).to_sec(), 2.0)
         if msg.header.frame_id == "TAKEOFF" and not self._is_flying:
             rospy.loginfo("Crazyflie taking off...")
             self.cf.high_level_commander.takeoff(msg.pose.position.z, duration)
@@ -103,17 +103,20 @@ class FlightControl:
             rospy.loginfo("Crazyflie landing...")
             self.cf.high_level_commander.land(msg.pose.position.z, duration)
             self._is_flying = False
-        elif msg.header.frame_id == "SHUTDOWN":
+        elif msg.header.frame_id == "SHUTDOWN" and self._is_flying:
             rospy.loginfo("Crazyflie shutting down...")
             self.cf.commander.send_stop_setpoint()
             self._is_flying = False
-        elif msg.header.frame_id == "FLYTO" and self._is_flying:
+        elif msg.header.frame_id == "FLYTO":
             angle = 2 * math.atan2(msg.pose.orientation.z, msg.pose.orientation.w)
             self.cf.commander.send_position_setpoint(msg.pose.position.x,
                                                      msg.pose.position.y,
                                                      msg.pose.position.z,
                                                      math.degrees(angle))
+            self._is_flying = True
             rospy.logdebug(f"Crazyflie flying towards {msg.pose.position} @ {angle}")
+        elif msg.header.frame_id == "RETURN":
+            pass
         self._cmd_lock.release()
 
     def _joy_control(self, msg: Joy):

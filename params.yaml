@@ -9,8 +9,8 @@ jackal_name: "alvin_jk"
 crazyflie_name: "alvin_cf"
 
 # transforms
-jk_t_cf: [ 0.00231743, 0.01967287, 0.0215242 ]
-jk_R_cf: [ 2.38236452e-04, 6.72903869e-03, -1.20958509e-02, 9.99904172e-01 ]
+jk_t_cf: [  0.00719441, -0.01398, 0.0207427 ]
+jk_R_cf: [ 0.00324669, 0.01396596, -0.00439251, 0.99988755 ]
 
 # visualizer
 serial_port: "/dev/ttyACM1"

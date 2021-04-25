@@ -1,7 +1,7 @@
 <launch>
   <node pkg="vrpn_client_ros" type="vrpn_client_node" name="vrpn_client_node">
     <rosparam subst_value="true">
-      server: 192.168.1.3
+      server: 192.168.1.4
       port: 3883
 
       update_frequency: 100.0
