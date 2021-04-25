@@ -219,7 +219,7 @@ int main(int argc, char* argv[]) {
         cf_msg.header.frame_id = "RETURN";
         cf_pose.t.x() = -1;
         cf_pose.t.y() = 1;
-        cf_pose.t.z() = 1.5;
+        cf_pose.t.z() = 1;
       }
 
       if (crazyflie_state.status == INITIALIZED ||
