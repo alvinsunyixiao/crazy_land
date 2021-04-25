@@ -9,6 +9,7 @@
 #include "ros/ros.h"
 #include "geometry_msgs/PoseStamped.h"
 #include "std_msgs/String.h"
+#include "sensor_msgs/Joy.h"
 
 #include "types.h"
 
@@ -77,6 +78,18 @@ void CrazyflieStatusHandler(const std_msgs::StringConstPtr& msg) {
     crazyflie_state.status = INITIALIZED;
     crazyflie_state.transition_time = ros::Time::now();
     ROS_INFO("Crazyflie: UNINITIALIZED -> INITIALIZED");
+  }
+}
+
+void JoystickHandler(const sensor_msgs::JoyConstPtr& msg) {
+  if (msg->buttons[8]) {
+    std::lock_guard<std::mutex> lock(mtx_state);
+    if (crazyflie_state.status == RETURNING &&
+        ros::Time::now() - crazyflie_state.transition_time > ros::Duration(15.)) {
+      ROS_INFO("Crazyflie: RETURNING -> TAKING OFF");
+      crazyflie_state.status = TAKING_OFF;
+      crazyflie_state.transition_time = ros::Time::now();
+    }
   }
 }
 
@@ -156,8 +169,9 @@ int main(int argc, char* argv[]) {
                                &CrazyflieMeasurementHandler);
   auto cf_status_sub = node.subscribe("/crazy_land/crazyflie/status", 10,
                                       &CrazyflieStatusHandler);
+  auto joy_sub = node.subscribe("/bluetooth_teleop/joy", 10, &JoystickHandler);
 
-  ros::AsyncSpinner spinner(2);
+  ros::AsyncSpinner spinner(3);
   spinner.start();
 
   // publishable topic
@@ -176,7 +190,7 @@ int main(int argc, char* argv[]) {
     jk_msg.header.frame_id = cf_msg.header.frame_id = "NO_OP";
     const auto t = ros::Time::now();
     const pose_3d_t jk_pose = trajectory->GetWaypoint(t);
-    const pose_3d_t cf_jk_pose = trajectory->GetWaypoint(t + ros::Duration(.13));
+    const pose_3d_t cf_jk_pose = trajectory->GetWaypoint(t + ros::Duration(.08));
     pose_3d_t cf_pose = {
       .t = cf_jk_pose.R * jk_t_cf + cf_jk_pose.t +
            Eigen::Vector3d::UnitZ() * jackal_state.position.z(),
@@ -205,7 +219,7 @@ int main(int argc, char* argv[]) {
         cf_msg.header.frame_id = "RETURN";
         cf_pose.t.x() = -1;
         cf_pose.t.y() = 1;
-        cf_pose.t.z() = 1;
+        cf_pose.t.z() = 1.5;
       }
 
       if (crazyflie_state.status == INITIALIZED ||

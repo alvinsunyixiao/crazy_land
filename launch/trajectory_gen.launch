@@ -11,7 +11,7 @@
     <param name="type" value="circular" />
     <param name="traj/center_x" value="0.0" />
     <param name="traj/center_y" value="0.0" />
-    <param name="traj/radius" value="1.0" />
+    <param name="traj/radius" value="0.7" />
     <param name="traj/period" value="12.0" />
   </node>
 </launch>

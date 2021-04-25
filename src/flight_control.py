@@ -115,22 +115,21 @@ class FlightControl:
                                                      math.degrees(angle))
             self._is_flying = True
             rospy.logdebug(f"Crazyflie flying towards {msg.pose.position} @ {angle}")
-        elif msg.header.frame_id == "RETURN":
+        elif msg.header.frame_id == "RETURN" and self._is_flying:
             rospy.loginfo(f"Crazyflie returning towards {msg.pose.position}")
             fly_duration = 5.0
-            sleep = 0.02
+            sleep = 0.1
 
             # fly to position
-            for i in range(int(fly_duration / sleep)):
-                self.cf.commander.send_position_setpoint(msg.pose.position.x,
-                                                         msg.pose.position.y,
-                                                         msg.pose.position.z,
-                                                         0.0)
-                time.sleep(sleep)
+            self.cf.high_level_commander.go_to(msg.pose.position.x,
+                                               msg.pose.position.y,
+                                               msg.pose.position.z,
+                                               0.0, 5.)
+            time.sleep(5.0)
 
             # land
-            self.cf.high_level_commander.land(0.0, 3.0, yaw=None)
-            time.sleep(3.0)
+            self.cf.high_level_commander.land(0.0, 5.0)
+            time.sleep(5.0)
 
             self._is_flying = False
 

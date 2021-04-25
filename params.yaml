@@ -3,14 +3,15 @@ btn_square: 0
 btn_cross: 1
 btn_circle: 2
 btn_triangle: 3
+btn_share: 8
 
 # vicon names
 jackal_name: "alvin_jk"
 crazyflie_name: "alvin_cf"
 
 # transforms
-jk_t_cf: [  0.00719441, -0.01398, 0.0207427 ]
-jk_R_cf: [ 0.00324669, 0.01396596, -0.00439251, 0.99988755 ]
+jk_t_cf: [ 0.00687546, -0.01011998, 0.02211249 ]
+jk_R_cf: [ 0.00130918, 0.00968097, 0.01116759, 0.99988992 ]
 
 # visualizer
 serial_port: "/dev/ttyACM1"
