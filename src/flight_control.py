@@ -116,7 +116,24 @@ class FlightControl:
             self._is_flying = True
             rospy.logdebug(f"Crazyflie flying towards {msg.pose.position} @ {angle}")
         elif msg.header.frame_id == "RETURN":
-            pass
+            rospy.loginfo(f"Crazyflie returning towards {msg.pose.position}")
+            fly_duration = 5.0
+            sleep = 0.02
+
+            # fly to position
+            for i in range(int(fly_duration / sleep)):
+                self.cf.commander.send_position_setpoint(msg.pose.position.x,
+                                                         msg.pose.position.y,
+                                                         msg.pose.position.z,
+                                                         0.0)
+                time.sleep(sleep)
+
+            # land
+            self.cf.high_level_commander.land(0.0, 3.0, yaw=None)
+            time.sleep(3.0)
+
+            self._is_flying = False
+
         self._cmd_lock.release()
 
     def _joy_control(self, msg: Joy):
