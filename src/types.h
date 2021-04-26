@@ -112,6 +112,7 @@ enum robot_status_t {
 
 struct jackal_state_t {
   SE3 pose;
+  Eigen::Matrix<double, 6, 1> twist;
   ros::Time timestamp;
   robot_status_t status = UNINITIALIZED;
 };

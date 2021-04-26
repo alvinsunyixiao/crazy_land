@@ -30,10 +30,7 @@ void JackalMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
                          msg->pose.position.z)
   };
   const SE3 prev_T_curr = jackal_state.pose.Inv() * world_T_curr;
-
-  std::stringstream ss;
-  ss << prev_T_curr.toTwist() / (msg->header.stamp - jackal_state.timestamp).toSec();
-  ROS_INFO("Twist: %s", ss.str().c_str());
+  jackal_state.twist = jackal_state.twist * 9.0 / 10 + prev_T_curr.toTwist() / 1e-2 / 10;
 
   jackal_state.pose.t << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
   jackal_state.pose.R.x() = msg->pose.orientation.x;
@@ -212,16 +209,19 @@ int main(int argc, char* argv[]) {
     jk_msg.header.frame_id = cf_msg.header.frame_id = "NO_OP";
     const auto t = ros::Time::now();
     const pose_3d_t jk_pose = trajectory->GetWaypoint(t);
-    const pose_3d_t cf_jk_pose = trajectory->GetWaypoint(t + ros::Duration(.08));
-    pose_3d_t cf_pose = {
-      .T = cf_jk_pose.T * jk_T_cf,
-      .timestamp = cf_jk_pose.timestamp,
-    };
 
-    cf_pose.T.t += Eigen::Vector3d::UnitZ() * jackal_state.pose.t.z();
+    pose_3d_t cf_pose;
 
     {
       std::lock_guard<std::mutex> lock(mtx_state);
+
+      const double t_comp = .6 + (ros::Time::now() - jackal_state.timestamp).toSec();
+      const SE3 curr_T_future = SE3::fromTwist(jackal_state.twist * t_comp);
+      const SE3 world_T_future = jackal_state.pose * curr_T_future;
+
+      cf_pose.T = world_T_future * jk_T_cf;
+      cf_pose.timestamp = jackal_state.timestamp + ros::Duration(t_comp);
+
       const double dt = (ros::Time::now() - crazyflie_state.transition_time).toSec();
       if (crazyflie_state.status == TAKING_OFF) {
         cf_msg.header.frame_id = "TAKEOFF";
@@ -250,6 +250,7 @@ int main(int argc, char* argv[]) {
       } else {
         jk_msg.header.frame_id = "GOTO";
       }
+      //jk_msg.header.frame_id = "GOTO";
     }
 
     jk_pose.FillPoseStampedMsg(&jk_msg);
