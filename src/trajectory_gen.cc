@@ -108,12 +108,12 @@ class CircularTraj : public ParametricTraj {
     const double t_sec = t.toSec();
 
     pose.timestamp = t;
-    pose.t << radius_ * std::cos(2 * M_PI * t_sec / period_) + center_.x(),
-              radius_ * std::sin(2 * M_PI * t_sec / period_) + center_.y(),
-              0;
+    pose.T.t << radius_ * std::cos(2 * M_PI * t_sec / period_) + center_.x(),
+                radius_ * std::sin(2 * M_PI * t_sec / period_) + center_.y(),
+                0;
 
     const double theta = 2 * M_PI * t_sec / period_ + M_PI / 2;
-    pose.R = Eigen::AngleAxisd(theta, Eigen::Vector3d::UnitZ());
+    pose.T.R = Eigen::AngleAxisd(theta, Eigen::Vector3d::UnitZ());
 
     return pose;
   }
@@ -159,8 +159,10 @@ int main(int argc, char* argv[]) {
   node.getParam("/crazy_params/crazyflie_name", crazyflie_name);
   node.getParam("/crazy_params/jk_t_cf", jk_t_cf_arr);
   node.getParam("/crazy_params/jk_R_cf", jk_R_cf_arr);
-  const Eigen::Vector3d jk_t_cf(jk_t_cf_arr[0], jk_t_cf_arr[1], jk_t_cf_arr[2]);
-  const Eigen::Quaterniond jk_R_cf(jk_R_cf_arr[3], jk_R_cf_arr[0], jk_R_cf_arr[1], jk_R_cf_arr[2]);
+  const SE3 jk_T_cf = {
+    .R = Eigen::Quaterniond(jk_R_cf_arr[3], jk_R_cf_arr[0], jk_R_cf_arr[1], jk_R_cf_arr[2]),
+    .t = Eigen::Vector3d(jk_t_cf_arr[0], jk_t_cf_arr[1], jk_t_cf_arr[2]),
+  };
 
   // subscribe to jackal measurement
   auto jk_sub = node.subscribe("/vrpn_client_node/" + jackal_name + "/pose", 10,
@@ -192,34 +194,34 @@ int main(int argc, char* argv[]) {
     const pose_3d_t jk_pose = trajectory->GetWaypoint(t);
     const pose_3d_t cf_jk_pose = trajectory->GetWaypoint(t + ros::Duration(.08));
     pose_3d_t cf_pose = {
-      .t = cf_jk_pose.R * jk_t_cf + cf_jk_pose.t +
-           Eigen::Vector3d::UnitZ() * jackal_state.position.z(),
-      .R = cf_jk_pose.R * jk_R_cf,
+      .T = cf_jk_pose.T * jk_T_cf,
       .timestamp = cf_jk_pose.timestamp,
     };
+
+    cf_pose.T.t += Eigen::Vector3d::UnitZ() * jackal_state.position.z();
 
     {
       std::lock_guard<std::mutex> lock(mtx_state);
       const double dt = (ros::Time::now() - crazyflie_state.transition_time).toSec();
       if (crazyflie_state.status == TAKING_OFF) {
         cf_msg.header.frame_id = "TAKEOFF";
-        cf_pose.t.z() += .5;
+        cf_pose.T.t.z() += .5;
       } else if (crazyflie_state.status == SYNCHRONIZING) {
         cf_msg.header.frame_id = "FLYTO";
-        cf_pose.t.z() += .5;
+        cf_pose.T.t.z() += .5;
       } else if (crazyflie_state.status == DOCKING) {
         cf_msg.header.frame_id = "FLYTO";
-        cf_pose.t.z() += std::max(.5 * (5 - dt) / 5., 0.15);
+        cf_pose.T.t.z() += std::max(.5 * (5 - dt) / 5., 0.15);
       } else if (crazyflie_state.status == ON_VEHICLE) {
         cf_msg.header.frame_id = "SHUTDOWN";
       } else if (crazyflie_state.status == LEAVING) {
         cf_msg.header.frame_id = "FLYTO";
-        cf_pose.t.z() += std::max(.5 * dt / 5., 0.15);
+        cf_pose.T.t.z() += std::max(.5 * dt / 5., 0.15);
       } else if (crazyflie_state.status == RETURNING) {
         cf_msg.header.frame_id = "RETURN";
-        cf_pose.t.x() = -1;
-        cf_pose.t.y() = 1;
-        cf_pose.t.z() = 1;
+        cf_pose.T.t.x() = -1;
+        cf_pose.T.t.y() = 1;
+        cf_pose.T.t.z() = 1;
       }
 
       if (crazyflie_state.status == INITIALIZED ||
