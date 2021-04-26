@@ -15,8 +15,8 @@ class JackalController {
  public:
   JackalController() : pnode_("~"), t_control_(&JackalController::ControlLoop, this) {
     // initialize target to origin
-    target_pose_.position.setZero();
-    target_pose_.rotation.angle() = 0;
+    target_pose_.pose.t.setZero();
+    target_pose_.pose.R.setIdentity();
 
     std::string jackal_name;
     node_.getParam("/crazy_params/jackal_name", jackal_name);
@@ -67,9 +67,10 @@ class JackalController {
       }
 
       // angular error
-      const Eigen::Vector3d position_diff = target_state.position - current_state.position;
+      const Eigen::Vector3d position_diff = target_state.pose.t - current_state.pose.t;
       const Eigen::Rotation2Dd target_rotation(std::atan2(position_diff.y(), position_diff.x()));
-      const double error_rot = (target_rotation * current_state.rotation.inverse()).smallestAngle();
+      const Eigen::Rotation2Dd current_rotation(2 * std::atan2(current_state.pose.R.z(), current_state.pose.R.w()));
+      const double error_rot = (target_rotation * current_rotation.inverse()).smallestAngle();
 
       // linear error
       const double error_pos = position_diff.topRows<2>().norm();
@@ -102,8 +103,11 @@ class JackalController {
 
   void MeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
     std::lock_guard<std::mutex> lock(mtx_state_);
-    state_.rotation.angle() = 2 * atan2(msg->pose.orientation.z, msg->pose.orientation.w);
-    state_.position << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+    state_.pose.t << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+    state_.pose.R.x() = msg->pose.orientation.x;
+    state_.pose.R.y() = msg->pose.orientation.y;
+    state_.pose.R.z() = msg->pose.orientation.z;
+    state_.pose.R.w() = msg->pose.orientation.w;
 
     if (state_.status == UNINITIALIZED) { state_.status = INITIALIZED; }
   }
@@ -115,7 +119,7 @@ class JackalController {
       // clamp x y to stay within bound
       const double x_safe = std::min(std::max(position.x, -target_max_abs_x_), target_max_abs_x_);
       const double y_safe = std::min(std::max(position.y, -target_max_abs_y_), target_max_abs_y_);
-      target_pose_.position << x_safe, y_safe, 0;
+      target_pose_.pose.t << x_safe, y_safe, 0;
     }
 
     {

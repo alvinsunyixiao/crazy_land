@@ -200,8 +200,8 @@ target_link_libraries(trajectory_gen PRIVATE ${catkin_LIBRARIES} Eigen3::Eigen)
 
 # Add gtest based cpp test target and link libraries
 catkin_add_gtest(type_test test/utest.cc)
-#target_link_libraries(type_test PRIVATE ${catkin_LIBRARIES} Eigen3::Eigen)
-target_include_directories(type_test PRIVATE ${catkin_INCLUDE_DIRS})
+target_link_libraries(type_test ${catkin_LIBRARIES} Eigen3::Eigen)
+target_include_directories(type_test PRIVATE ${catkin_INCLUDE_DIRS} src)
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)

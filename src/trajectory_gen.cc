@@ -20,8 +20,26 @@ crazyflie_state_t crazyflie_state;
 
 void JackalMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
   std::lock_guard<std::mutex> lock(mtx_state);
-  jackal_state.rotation.angle() = 2 * atan2(msg->pose.orientation.z, msg->pose.orientation.w);
-  jackal_state.position << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+  const SE3 world_T_curr = {
+    .R = Eigen::Quaterniond(msg->pose.orientation.w,
+                            msg->pose.orientation.x,
+                            msg->pose.orientation.y,
+                            msg->pose.orientation.z),
+    .t = Eigen::Vector3d(msg->pose.position.x,
+                         msg->pose.position.y,
+                         msg->pose.position.z)
+  };
+  const SE3 prev_T_curr = jackal_state.pose.Inv() * world_T_curr;
+
+  std::stringstream ss;
+  ss << prev_T_curr.toTwist();
+  ROS_INFO("Twist: %s", ss.str().c_str());
+
+  jackal_state.pose.t << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+  jackal_state.pose.R.x() = msg->pose.orientation.x;
+  jackal_state.pose.R.y() = msg->pose.orientation.y;
+  jackal_state.pose.R.z() = msg->pose.orientation.z;
+  jackal_state.pose.R.w() = msg->pose.orientation.w;
 }
 
 void CrazyflieMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
@@ -198,7 +216,7 @@ int main(int argc, char* argv[]) {
       .timestamp = cf_jk_pose.timestamp,
     };
 
-    cf_pose.T.t += Eigen::Vector3d::UnitZ() * jackal_state.position.z();
+    cf_pose.T.t += Eigen::Vector3d::UnitZ() * jackal_state.pose.t.z();
 
     {
       std::lock_guard<std::mutex> lock(mtx_state);

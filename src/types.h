@@ -111,8 +111,7 @@ enum robot_status_t {
 };
 
 struct jackal_state_t {
-  Eigen::Rotation2Dd rotation;
-  Eigen::Vector3d position;
+  SE3 pose;
   robot_status_t status = UNINITIALIZED;
 };
 
