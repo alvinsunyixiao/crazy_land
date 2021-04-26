@@ -32,7 +32,7 @@ void JackalMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
   const SE3 prev_T_curr = jackal_state.pose.Inv() * world_T_curr;
 
   std::stringstream ss;
-  ss << prev_T_curr.toTwist();
+  ss << prev_T_curr.toTwist() / (msg->header.stamp - jackal_state.timestamp).toSec();
   ROS_INFO("Twist: %s", ss.str().c_str());
 
   jackal_state.pose.t << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
@@ -40,6 +40,8 @@ void JackalMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
   jackal_state.pose.R.y() = msg->pose.orientation.y;
   jackal_state.pose.R.z() = msg->pose.orientation.z;
   jackal_state.pose.R.w() = msg->pose.orientation.w;
+
+  jackal_state.timestamp = msg->header.stamp;
 }
 
 void CrazyflieMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
