@@ -118,8 +118,7 @@ struct jackal_state_t {
 };
 
 struct crazyflie_state_t {
-  Eigen::Vector3d position;
-  Eigen::Quaterniond orientation;
+  SE3 pose;
   robot_status_t status = UNINITIALIZED;
   ros::Time transition_time;
 };

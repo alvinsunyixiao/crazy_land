@@ -9,7 +9,8 @@ set(CMAKE_CXX_STANDARD 14)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS rospy roscpp geometry_msgs sensor_msgs)
+find_package(catkin REQUIRED
+    COMPONENTS rospy roscpp geometry_msgs sensor_msgs message_generation eigen_conversions)
 
 find_package(Eigen3 REQUIRED)
 
@@ -42,12 +43,11 @@ find_package(Eigen3 REQUIRED)
 ##   * uncomment the generate_messages entry below
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
-## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+# Generate messages in the 'msg' folder
+add_message_files(
+  FILES
+  viz.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -63,11 +63,12 @@ find_package(Eigen3 REQUIRED)
 #   Action2.action
 # )
 
-## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+# Generate added messages and services with any dependencies listed here
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs  # Or other packages containing msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -101,7 +102,7 @@ find_package(Eigen3 REQUIRED)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES crazy_land
-#  CATKIN_DEPENDS other_catkin_pkg
+    CATKIN_DEPENDS message_runtime
 #  DEPENDS system_lib
 )
 

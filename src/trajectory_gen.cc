@@ -7,16 +7,25 @@
 #include <Eigen/Dense>
 
 #include "ros/ros.h"
+
+#include "eigen_conversions/eigen_msg.h"
 #include "geometry_msgs/PoseStamped.h"
 #include "std_msgs/String.h"
 #include "sensor_msgs/Joy.h"
 
+#include "crazy_land/viz.h"
 #include "types.h"
 
 std::mutex mtx_state;
 
 jackal_state_t jackal_state;
 crazyflie_state_t crazyflie_state;
+
+void SE3ToPose(const SE3& pose, geometry_msgs::Pose* msg) {
+  geometry_msgs::Pose ret;
+  tf::quaternionEigenToMsg(pose.R, msg->orientation);
+  tf::pointEigenToMsg(pose.t, msg->position);
+}
 
 void JackalMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
   std::lock_guard<std::mutex> lock(mtx_state);
@@ -43,9 +52,13 @@ void JackalMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
 
 void CrazyflieMeasurementHandler(const geometry_msgs::PoseStampedConstPtr& msg) {
   std::lock_guard<std::mutex> lock(mtx_state);
-  crazyflie_state.position << msg->pose.position.x,
-                              msg->pose.position.y,
-                              msg->pose.position.z;
+  crazyflie_state.pose.t << msg->pose.position.x,
+                            msg->pose.position.y,
+                            msg->pose.position.z;
+  crazyflie_state.pose.R.x() = msg->pose.orientation.x;
+  crazyflie_state.pose.R.y() = msg->pose.orientation.y;
+  crazyflie_state.pose.R.z() = msg->pose.orientation.z;
+  crazyflie_state.pose.R.w() = msg->pose.orientation.w;
 
   switch (crazyflie_state.status) {
     case INITIALIZED:
@@ -196,9 +209,12 @@ int main(int argc, char* argv[]) {
   // publishable topic
   auto jackal_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/jackal/ctrl", 10);
   auto cf_ctrl = node.advertise<geometry_msgs::PoseStamped>("/crazy_land/crazyflie/ctrl", 10);
+  auto viz_log = node.advertise<crazy_land::viz>("/crazy_land/viz_log", 10);
 
   // create trajectory object
   const auto trajectory = MakeTrajectory();
+
+  crazy_land::viz viz_msg;
 
   // trajectory loop
   ros::Duration(3).sleep();
@@ -250,7 +266,15 @@ int main(int argc, char* argv[]) {
       } else {
         jk_msg.header.frame_id = "GOTO";
       }
-      //jk_msg.header.frame_id = "GOTO";
+
+      // log information
+      viz_msg.header.stamp = ros::Time::now();
+      tf::twistEigenToMsg(jackal_state.twist, viz_msg.jk_twist);
+      SE3ToPose(crazyflie_state.pose, &viz_msg.world_T_cf);
+      SE3ToPose(jackal_state.pose, &viz_msg.world_T_jk);
+      SE3ToPose(jk_pose.T, &viz_msg.world_T_jk_target);
+      SE3ToPose(cf_pose.T, &viz_msg.world_T_cf_target);
+      tf::quaternionEigenToMsg(jackal_state.pose.R, viz_msg.world_T_jk.orientation);
     }
 
     jk_pose.FillPoseStampedMsg(&jk_msg);
@@ -258,6 +282,7 @@ int main(int argc, char* argv[]) {
 
     jackal_ctrl.publish(jk_msg);
     cf_ctrl.publish(cf_msg);
+    viz_log.publish(viz_msg);
     ctrl_rate.sleep();
   }
 
