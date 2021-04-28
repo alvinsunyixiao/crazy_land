@@ -269,11 +269,17 @@ int main(int argc, char* argv[]) {
 
       // log information
       viz_msg.header.stamp = ros::Time::now();
+
       tf::twistEigenToMsg(jackal_state.twist, viz_msg.jk_twist);
+
       SE3ToPose(crazyflie_state.pose, &viz_msg.world_T_cf);
       SE3ToPose(jackal_state.pose, &viz_msg.world_T_jk);
+
       SE3ToPose(jk_pose.T, &viz_msg.world_T_jk_target);
-      SE3ToPose(cf_pose.T, &viz_msg.world_T_cf_target);
+
+      SE3ToPose(jackal_state.pose * jk_T_cf, &viz_msg.world_T_cf_target);
+      SE3ToPose(cf_pose.T, &viz_msg.world_T_cf_future);
+
       tf::quaternionEigenToMsg(jackal_state.pose.R, viz_msg.world_T_jk.orientation);
     }
 
